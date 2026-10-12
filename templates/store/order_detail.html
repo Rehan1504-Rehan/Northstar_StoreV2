@@ -1,0 +1,85 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}Order {{ order.order_number }} — Northstar Store{% endblock %}
+{% block content %}
+<section class="container pd-top">
+    <div class="order-confirmation text-center" data-reveal>
+        {% if order.is_cancelled %}
+            <span class="confirmation-icon confirmation-icon-cancelled"><i class="bi bi-x-lg"></i></span>
+            <h1 class="page-hero-title mt-3">This order was cancelled</h1>
+            <p class="page-hero-sub mx-auto mb-3">
+                Order <strong>#{{ order.order_number }}</strong> was cancelled{% if order.cancelled_at %} on {{ order.cancelled_at|date:'M j, Y · g:i A' }}{% endif %}.
+                Its items have been returned to our stock.
+            </p>
+        {% else %}
+            <span class="confirmation-icon"><i class="bi bi-check-lg"></i></span>
+            <h1 class="page-hero-title mt-3">Thank you, {{ user.first_name|default:user.username }}!</h1>
+            <p class="page-hero-sub mx-auto mb-3">Your order <strong>#{{ order.order_number }}</strong> is confirmed and being prepared.</p>
+        {% endif %}
+        <span class="status-pill status-{{ order.status }}">{{ order.get_status_display }}</span>
+        {% if order.can_cancel %}
+            <div class="order-cancel-cta">
+                <button type="button" class="btn btn-outline-danger rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#cancel-modal-{{ order.order_number }}">
+                    <i class="bi bi-x-circle me-2"></i>Cancel this order
+                </button>
+                <p class="cancel-hint mb-0 mt-2">
+                    <i class="bi bi-info-circle me-1"></i>You can cancel while the order is still pending or being processed.
+                </p>
+            </div>
+        {% elif order.status == 'shipped' or order.status == 'delivered' %}
+            <p class="cancel-hint mb-0 mt-3">
+                <i class="bi bi-truck me-1"></i>This order is on its way, so it can no longer be cancelled. See our
+                <a href="{% url 'store:info_page' 'returns' %}">returns policy</a> for what to do next.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="row g-4 justify-content-center pb-4">
+        <div class="col-lg-7" data-reveal>
+            <div class="panel">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h2 class="panel-heading mb-0"><i class="bi bi-box-seam me-2"></i>Order details</h2>
+                    <span class="order-date">{{ order.created_at|date:'M j, Y · g:i A' }}</span>
+                </div>
+                {% for item in order.items.all %}
+                    <div class="mini-order-item order-line">
+                        <div class="mini-order-image">
+                            {% if item.product and item.product.image %}
+                                <img src="{{ item.product.image.url }}" alt="{{ item.product_name }}" loading="lazy" decoding="async" data-fallback>
+                            {% else %}
+                                <div class="placeholder-image"><i class="bi bi-image"></i></div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong>{{ item.product_name }}</strong>
+                            <div class="mini-order-qty">{{ item.quantity }} × {{ item.price|inr }}</div>
+                        </div>
+                        <span>{{ item.line_total|inr }}</span>
+                    </div>
+                {% endfor %}
+                <hr class="summary-divider">
+                <div class="summary-total"><span>{% if order.is_cancelled %}Order total{% else %}Total paid{% endif %}</span><strong>{{ order.total_amount|inr }}</strong></div>
+            </div>
+        </div>
+        <div class="col-lg-4" data-reveal style="--d:.08s">
+            <div class="summary-card">
+                <h2 class="summary-title mb-3">Delivery</h2>
+                <div class="order-meta-label">Shipping address</div>
+                <p class="order-meta-value">{{ order.shipping_address|linebreaksbr }}</p>
+                <div class="order-meta-label">Phone number</div>
+                <p class="order-meta-value">{{ order.phone_number }}</p>
+                <a class="btn btn-ghost-dark rounded-pill w-100" href="{% url 'store:order_list' %}"><i class="bi bi-box-seam me-2"></i>View all orders</a>
+                <p class="summary-foot mt-3 mb-0"><i class="bi bi-envelope me-1"></i>Updates are sent to {{ user.email }}</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block modals %}
+    {# Rendered at body level (base.html) so no transformed [data-reveal]
+       ancestor can re-anchor the fixed-position Bootstrap modal. #}
+    {% if order.can_cancel %}
+        {% include 'store/includes/cancel_order_modal.html' with order=order %}
+    {% endif %}
+{% endblock %}

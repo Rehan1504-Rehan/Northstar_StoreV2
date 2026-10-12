@@ -1,0 +1,44 @@
+{% comment %}
+Confirmation dialog for cancelling one order. Included once per cancellable
+order, always inside the page-level {% block modals %} in base.html so every
+dialog is a direct child of <body>.
+
+That placement matters: a Bootstrap modal is position:fixed, and fixed
+elements are positioned against their nearest ancestor with a CSS transform
+(or will-change: transform). The order list keeps each card inside a
+[data-reveal] entrance wrapper that carries both, and hovering a card
+transforms it too - a modal rendered inside those would be re-anchored to the
+card/list instead of the viewport. The result is the page darkening behind the
+backdrop while the dialog itself is misplaced or off-screen, with the buttons
+underneath unclickable. Body level keeps the dialog centred and usable.
+
+The id carries the order number so several of these can share a page.
+{% endcomment %}
+<div class="modal fade" id="cancel-modal-{{ order.order_number }}" tabindex="-1" aria-labelledby="cancel-modal-label-{{ order.order_number }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content cancel-modal">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="cancel-modal-label-{{ order.order_number }}">
+                    Cancel order #{{ order.order_number }}?
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>This cancels the order and returns its items to our stock. It cannot be undone.</p>
+                <p class="mb-0 text-muted small">
+                    Prefer to keep it? Orders that have already shipped can be sent back through our
+                    <a href="{% url 'store:info_page' 'returns' %}">returns policy</a> instead.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost-dark rounded-pill" data-bs-dismiss="modal">Keep order</button>
+                <form method="post" action="{% url 'store:order_cancel' order_number=order.order_number %}" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger rounded-pill px-4">
+                        <i class="bi bi-x-circle me-2"></i>Yes, cancel order
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

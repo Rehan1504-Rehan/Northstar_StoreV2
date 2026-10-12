@@ -1,0 +1,29 @@
+{% load store_extras %}
+{% if paginator.num_pages > 1 %}
+<nav class="pagination-nav" aria-label="Product pages">
+    <ul class="pagination-list">
+        {% if page_obj.has_previous %}
+            <li><a class="page-pill" href="?{% querystring page=page_obj.previous_page_number %}" aria-label="Previous page"><i class="bi bi-chevron-left"></i></a></li>
+        {% else %}
+            <li><span class="page-pill disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span></li>
+        {% endif %}
+        {% for num in paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li><span class="page-pill current" aria-current="page">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li><a class="page-pill" href="?{% querystring page=num %}">{{ num }}</a></li>
+            {% elif num == 1 or num == paginator.num_pages %}
+                <li><a class="page-pill" href="?{% querystring page=num %}">{{ num }}</a></li>
+            {% elif num == 2 or num == paginator.num_pages|add:'-1' %}
+                <li><span class="page-pill dots" aria-hidden="true">…</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+            <li><a class="page-pill" href="?{% querystring page=page_obj.next_page_number %}" aria-label="Next page"><i class="bi bi-chevron-right"></i></a></li>
+        {% else %}
+            <li><span class="page-pill disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span></li>
+        {% endif %}
+    </ul>
+    <p class="pagination-note">Page {{ page_obj.number }} of {{ paginator.num_pages }} · {{ paginator.count }} product{{ paginator.count|pluralize }}</p>
+</nav>
+{% endif %}

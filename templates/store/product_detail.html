@@ -1,0 +1,143 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}{{ product.name }} — Northstar Store{% endblock %}
+{% block content %}
+<section class="container pd-top">
+    <nav aria-label="breadcrumb" class="mb-3" data-reveal>
+        <ol class="breadcrumb small mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'store:product_list' %}">Shop</a></li>
+            {% if product.category %}<li class="breadcrumb-item"><a href="{{ product.category.get_absolute_url }}">{{ product.category.name }}</a></li>{% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4 g-lg-5">
+        <div class="col-lg-6" data-reveal>
+            <div class="pd-gallery">
+                <div class="pd-zoom" id="pdZoom">
+                    {% if product.image %}
+                        <img src="{{ product.image.url }}" class="pd-image" id="pdImage" alt="{{ product.name }}" decoding="async" data-fallback>
+                    {% else %}
+                        <div class="placeholder-image pd-image-placeholder"><i class="bi bi-image"></i><span>No image available</span></div>
+                    {% endif %}
+                    {% with off=product|discount_percent %}
+                        {% if product.has_discount and off %}<span class="pc-badge pc-badge-sale pd-badge">{{ off }}% OFF</span>{% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6" data-reveal style="--d:.1s">
+            <div class="pd-info sticky-lg-top">
+                {% if product.category %}
+                    <a class="pd-cat" href="{{ product.category.get_absolute_url }}"><i class="bi {{ product.category|category_icon }} me-1"></i>{{ product.category.name }}</a>
+                {% endif %}
+                <h1 class="pd-title">{{ product.name }}</h1>
+
+                <div class="pd-price">
+                    <span class="pd-price-now">{{ product.get_price|inr }}</span>
+                    {% if product.has_discount %}
+                        <span class="pd-price-was">{{ product.price|inr }}</span>
+                        <span class="pd-save">Save {{ product|savings_amount|inr }} ({{ product|discount_percent }}% off)</span>
+                    {% endif %}
+                </div>
+
+                <div class="pd-stock-row">
+                    {% if product.is_in_stock %}
+                        {% if product.stock_quantity <= 5 %}
+                            <span class="stock-chip stock-low big"><i class="bi bi-exclamation-circle-fill"></i>Only {{ product.stock_quantity }} left in stock — order soon</span>
+                        {% else %}
+                            <span class="stock-chip stock-in big"><i class="bi bi-check-circle-fill"></i>In stock · {{ product.stock_quantity }} available</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="stock-chip stock-out big"><i class="bi bi-x-circle-fill"></i>Currently sold out</span>
+                    {% endif %}
+                </div>
+
+                <p class="pd-description">{{ product.description|linebreaksbr }}</p>
+
+                {% if product.is_in_stock %}
+                    {% if user.is_authenticated %}
+                        <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="pd-buy">
+                            {% csrf_token %}
+                            <div class="quantity-control">
+                                <button type="button" class="quantity-button" data-quantity-action="decrease" aria-label="Decrease quantity"><i class="bi bi-dash"></i></button>
+                                <label class="visually-hidden" for="quantity">Quantity</label>
+                                <input id="quantity" name="quantity" type="number" value="1" min="1" max="{{ product.stock_quantity }}" aria-label="Quantity" inputmode="numeric">
+                                <button type="button" class="quantity-button" data-quantity-action="increase" aria-label="Increase quantity"><i class="bi bi-plus"></i></button>
+                            </div>
+                            <button class="btn btn-dark btn-lg rounded-pill pd-add" type="submit"><i class="bi bi-cart-plus me-2"></i>Add to Cart</button>
+                            <button class="btn btn-accent btn-lg rounded-pill pd-buynow" type="submit" name="buy_now" value="1"><i class="bi bi-lightning-charge me-2"></i>Buy Now</button>
+                        </form>
+                    {% else %}
+                        <div class="pd-buy">
+                            <a class="btn btn-accent btn-lg rounded-pill flex-grow-1" href="{% url 'store:login' %}?next={{ product.get_absolute_url|urlencode }}">Sign in to buy<i class="bi bi-arrow-right ms-2"></i></a>
+                        </div>
+                        <p class="pd-signin-note">New here? <a href="{% url 'store:register' %}">Create a free account</a> to save your cart and track orders.</p>
+                    {% endif %}
+                {% endif %}
+
+                <div class="pd-perks">
+                    <div class="pd-perk"><i class="bi bi-truck"></i><span><b>Free shipping</b><small>On orders above ₹999</small></span></div>
+                    <div class="pd-perk"><i class="bi bi-arrow-repeat"></i><span><b>30-day returns</b><small>Easy, no questions</small></span></div>
+                    <div class="pd-perk"><i class="bi bi-shield-check"></i><span><b>Secure checkout</b><small>Encrypted ordering</small></span></div>
+                    <div class="pd-perk"><i class="bi bi-patch-check"></i><span><b>Genuine product</b><small>Quality checked</small></span></div>
+                </div>
+
+                <table class="meta-table">
+                    <tbody>
+                        <tr><td>SKU</td><td>{{ product.slug }}</td></tr>
+                        {% if product.category %}<tr><td>Category</td><td>{{ product.category.name }}</td></tr>{% endif %}
+                        <tr><td>Availability</td><td>{% if product.is_in_stock %}In stock ({{ product.stock_quantity }}){% else %}Sold out{% endif %}</td></tr>
+                        <tr><td>Delivery</td><td>Ships within 1–2 business days</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 pd-lower">
+        <div class="col-lg-7" data-reveal>
+            <div class="panel">
+                <h2 class="panel-heading"><i class="bi bi-card-text me-2"></i>Product description</h2>
+                <p class="mb-0 pd-description">{{ product.description|linebreaksbr }}</p>
+            </div>
+        </div>
+        <div class="col-lg-5" data-reveal style="--d:.08s">
+            <div class="panel">
+                <h2 class="panel-heading"><i class="bi bi-list-check me-2"></i>Specifications</h2>
+                <table class="meta-table spec-table">
+                    <tbody>
+                        <tr><td>Product</td><td>{{ product.name }}</td></tr>
+                        {% if product.category %}<tr><td>Category</td><td>{{ product.category.name }}</td></tr>{% endif %}
+                        <tr><td>Price</td><td>{{ product.get_price|inr }}{% if product.has_discount %} <s class="text-muted">{{ product.price|inr }}</s>{% endif %}</td></tr>
+                        <tr><td>Stock</td><td>{% if product.is_in_stock %}{{ product.stock_quantity }} units{% else %}Out of stock{% endif %}</td></tr>
+                        <tr><td>Listed</td><td>{{ product.created_at|date:'M j, Y' }}</td></tr>
+                        <tr><td>Warranty</td><td>As per brand policy</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if related_products %}
+<section class="section-block section-tint">
+    <div class="container">
+        <div class="section-head" data-reveal>
+            <div>
+                <span class="eyebrow">You may also like</span>
+                <h2 class="section-title">Related Products</h2>
+            </div>
+            <a class="link-arrow" href="{% url 'store:product_list' %}">Shop all<i class="bi bi-arrow-right"></i></a>
+        </div>
+        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3 g-md-4">
+            {% for product in related_products %}
+                <div class="col" data-reveal>{% include 'store/includes/product_card.html' %}</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

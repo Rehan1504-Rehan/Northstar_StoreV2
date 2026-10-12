@@ -1,0 +1,71 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}My orders — Northstar Store{% endblock %}
+{% block content %}
+<section class="page-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">My orders</li>
+            </ol>
+        </nav>
+        <h1 class="page-hero-title">My Orders</h1>
+        <p class="page-hero-sub">Everything you have ordered, all in one place.</p>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    {% if orders %}
+        <div class="orders-list" data-reveal>
+            {% for order in orders %}
+                {# The card is a plain container so the cancel button can live
+                   inside it: a button may not be nested in the card-wide link. #}
+                <div class="order-card">
+                    <a class="order-card-link" href="{{ order.get_absolute_url }}">
+                        <div class="order-card-top">
+                            <span class="order-number"><i class="bi bi-receipt me-2"></i>#{{ order.order_number }}</span>
+                            <span class="status-pill status-{{ order.status }}">{{ order.get_status_display }}</span>
+                        </div>
+                        <div class="order-card-meta">
+                            <span><i class="bi bi-calendar3 me-1"></i>{{ order.created_at|date:'M j, Y' }}</span>
+                            <span><i class="bi bi-box-seam me-1"></i>{{ order.items.all|length }} item{{ order.items.all|length|pluralize }}</span>
+                            <span class="order-total">{{ order.total_amount|inr }}</span>
+                        </div>
+                        <span class="order-card-cta">View details<i class="bi bi-arrow-right ms-1"></i></span>
+                    </a>
+                    {% if order.can_cancel %}
+                        <div class="order-card-actions">
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#cancel-modal-{{ order.order_number }}">
+                                <i class="bi bi-x-circle me-1"></i>Cancel order
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <a href="{% url 'store:product_list' %}" class="link-arrow d-inline-flex mt-3"><i class="bi bi-bag me-1"></i>Shop for something new</a>
+    {% else %}
+        <div class="empty-state large-empty" data-reveal>
+            <i class="bi bi-box-seam"></i>
+            <h2>No orders yet</h2>
+            <p>Your first order is waiting to happen. Browse the shop and find something great.</p>
+            <a class="btn btn-accent rounded-pill px-4" href="{% url 'store:product_list' %}">Explore products<i class="bi bi-arrow-right ms-2"></i></a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% comment %}
+The confirmation dialogs stay out of the order cards: the cards live inside a
+[data-reveal] entrance wrapper that keeps a CSS transform, and a transform on
+an ancestor re-anchors Bootstrap's fixed-position modal so the page would just
+darken behind a misplaced dialog. Body level keeps them centred on the viewport.
+{% endcomment %}
+{% block modals %}
+    {% for order in orders %}
+        {% if order.can_cancel %}
+            {% include 'store/includes/cancel_order_modal.html' with order=order %}
+        {% endif %}
+    {% endfor %}
+{% endblock %}

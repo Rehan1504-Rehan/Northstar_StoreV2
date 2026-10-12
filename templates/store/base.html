@@ -1,0 +1,111 @@
+{% load static store_extras %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Northstar Store — premium electronics, gaming gear and accessories at better prices. Ships across India.">
+    <title>{% block title %}Northstar Store{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='32' y2='32'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M16 5l2.7 8.3L27 16l-8.3 2.7L16 27l-2.7-8.3L5 16l8.3-2.7z' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'store/css/site.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'store/css/shopverse.css' %}">
+    <link rel="stylesheet" href="{% static 'store/css/template-theme.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <div class="top-strip" aria-hidden="false">
+        <div class="container d-flex align-items-center justify-content-between gap-3">
+            <span class="top-strip-msg"><i class="bi bi-truck me-1"></i>Free shipping on orders above ₹999<span class="d-none d-sm-inline"> &nbsp;·&nbsp; Easy 30-day returns</span></span>
+            <span class="top-strip-msg d-none d-md-inline"><i class="bi bi-shield-lock me-1"></i>100% secure checkout</span>
+        </div>
+    </div>
+
+    {% include 'store/includes/navbar.html' %}
+
+    <main id="main-content">
+        {% if messages %}
+            <div class="container toast-stack" aria-live="polite">
+                {% for message in messages %}
+                    <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show shadow-sm toast-alert" role="alert">
+                        <i class="bi {% if message.tags == 'success' %}bi-check-circle-fill{% elif message.tags == 'error' %}bi-exclamation-circle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-about">
+                    <a class="brand brand-footer" href="{% url 'store:home' %}">
+                        <span class="brand-mark"><i class="bi bi-stars"></i></span>
+                        <span class="brand-word">Northstar<em>Store</em></span>
+                    </a>
+                    <p class="footer-copy">Premium electronics, gaming gear and everyday tech — hand-picked, honestly priced and delivered fast across India.</p>
+                    <div class="footer-chips">
+                        <span class="footer-chip"><i class="bi bi-shield-check"></i>Secure checkout</span>
+                        <span class="footer-chip"><i class="bi bi-truck"></i>Fast delivery</span>
+                        <span class="footer-chip"><i class="bi bi-arrow-repeat"></i>30-day returns</span>
+                    </div>
+                </div>
+                <nav class="footer-col" aria-label="Shop links">
+                    <h6 class="footer-heading">Shop</h6>
+                    <a href="{% url 'store:product_list' %}">All products</a>
+                    {% for category in nav_categories %}
+                        <a href="{{ category.get_absolute_url }}">{{ category.name }}</a>
+                    {% endfor %}
+                    {% if deals_available %}<a href="{% url 'store:deals' %}">Deals</a>{% endif %}
+                </nav>
+                <nav class="footer-col" aria-label="Customer links">
+                    <h6 class="footer-heading">Customer</h6>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'store:profile' %}">Profile</a>
+                        <a href="{% url 'store:order_list' %}">Orders</a>
+                        <a href="{% url 'store:cart' %}">Cart</a>
+                    {% else %}
+                        <a href="{% url 'store:login' %}">Sign in</a>
+                        <a href="{% url 'store:register' %}">Create account</a>
+                        <a href="{% url 'store:cart' %}">Cart</a>
+                    {% endif %}
+                    <a href="/admin/">Store admin</a>
+                </nav>
+                <nav class="footer-col" aria-label="Help links">
+                    <h6 class="footer-heading">Help</h6>
+                    <a href="{% url 'store:info_page' 'shipping' %}">Shipping</a>
+                    <a href="{% url 'store:info_page' 'returns' %}">Returns</a>
+                    <a href="{% url 'store:info_page' 'privacy' %}">Privacy policy</a>
+                    <a href="{% url 'store:info_page' 'terms' %}">Terms of service</a>
+                </nav>
+            </div>
+            <div class="footer-bottom">
+                <span>© {% now "Y" %} Northstar Store. All rights reserved.</span>
+                <span class="d-none d-sm-inline">Genuine products · Honest prices · Made for India</span>
+            </div>
+        </div>
+    </footer>
+
+    {# Overlay dialogs (Bootstrap modals) must be rendered at body level, not
+       inside the page content. A modal is position:fixed, so any ancestor
+       with a transform or will-change:transform (such as a [data-reveal]
+       entrance wrapper or a hover-lifted card) would re-anchor it to that
+       ancestor instead of the viewport: the page would darken behind the
+       backdrop while the dialog itself floats off-centre or out of view, and
+       every button underneath stays unclickable. #}
+    {% block modals %}{% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'store/js/site.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,87 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}Shopping cart — Northstar Store{% endblock %}
+{% block content %}
+<section class="page-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Cart</li>
+            </ol>
+        </nav>
+        <h1 class="page-hero-title">Shopping Cart</h1>
+        <p class="page-hero-sub">{% if items %}{{ cart.item_count }} item{{ cart.item_count|pluralize }} in your cart{% else %}Review your picks before they make their way to you.{% endif %}</p>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    {% if items %}
+        <div class="row g-4">
+            <div class="col-lg-8" data-reveal>
+                <div class="cart-list">
+                    {% for item in items %}
+                        <div class="cart-item">
+                            <a class="cart-item-image" href="{{ item.product.get_absolute_url }}" aria-label="View {{ item.product.name }}">
+                                {% if item.product.image %}
+                                    <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" loading="lazy" decoding="async" data-fallback>
+                                {% else %}
+                                    <div class="placeholder-image"><i class="bi bi-image"></i></div>
+                                {% endif %}
+                            </a>
+                            <div class="cart-item-info">
+                                <span class="cart-item-cat">{% if item.product.category %}{{ item.product.category.name }}{% else %}Product{% endif %}</span>
+                                <h2 class="cart-item-name"><a href="{{ item.product.get_absolute_url }}">{{ item.product.name }}</a></h2>
+                                <div class="cart-item-unit">
+                                    {{ item.product.get_price|inr }} each
+                                    {% if item.product.has_discount %}<s>{{ item.product.price|inr }}</s>{% endif %}
+                                </div>
+                                <div class="cart-actions">
+                                    <form method="post" action="{% url 'store:update_cart' item.id %}" class="quantity-control quantity-control-small m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'-1' }}" class="quantity-button" aria-label="Decrease quantity of {{ item.product.name }}"><i class="bi bi-dash"></i></button>
+                                        <span class="quantity-value" aria-label="Quantity">{{ item.quantity }}</span>
+                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'1' }}" class="quantity-button" aria-label="Increase quantity of {{ item.product.name }}"><i class="bi bi-plus"></i></button>
+                                    </form>
+                                    <form method="post" action="{% url 'store:remove_from_cart' item.id %}" class="m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" class="remove-link"><i class="bi bi-trash3 me-1"></i>Remove</button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="cart-item-total">
+                                <span class="cart-item-total-label">Subtotal</span>
+                                <strong>{{ item.subtotal|inr }}</strong>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <a href="{% url 'store:product_list' %}" class="link-arrow mt-3 d-inline-flex"><i class="bi bi-arrow-left me-1"></i>Continue shopping</a>
+            </div>
+
+            <div class="col-lg-4" data-reveal style="--d:.08s">
+                <div class="summary-card sticky-lg-top">
+                    <h2 class="summary-title">Order summary</h2>
+                    <div class="summary-row"><span>Subtotal ({{ cart.item_count }} item{{ cart.item_count|pluralize }})</span><span>{{ cart_regular_total|inr }}</span></div>
+                    {% if cart_savings > 0 %}
+                        <div class="summary-row summary-saving"><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span>−{{ cart_savings|inr }}</span></div>
+                    {% endif %}
+                    <div class="summary-row"><span>Shipping</span><span class="summary-free">{% if cart_total > 999 %}FREE{% else %}Calculated at checkout{% endif %}</span></div>
+                    <hr class="summary-divider">
+                    <div class="summary-total"><span>Total</span><strong>{{ cart_total|inr }}</strong></div>
+                    {% if cart_savings > 0 %}<p class="summary-save-note">You save {{ cart_savings|inr }} on this order</p>{% endif %}
+                    <a href="{% url 'store:checkout' %}" class="btn btn-accent btn-lg rounded-pill w-100 mt-3">Proceed to Checkout<i class="bi bi-arrow-right ms-2"></i></a>
+                    <p class="summary-foot"><i class="bi bi-shield-lock me-1"></i>Secure checkout — prices include all offers</p>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state large-empty" data-reveal>
+            <i class="bi bi-cart-x"></i>
+            <h2>Your cart is empty</h2>
+            <p>Looks like you haven't added anything yet. Explore the store and find something you love.</p>
+            <a class="btn btn-accent rounded-pill px-4" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-2"></i>Continue Shopping</a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

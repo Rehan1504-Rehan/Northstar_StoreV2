@@ -1,0 +1,59 @@
+{% extends 'store/base.html' %}
+{% block title %}Edit Profile — Northstar Store{% endblock %}
+{% block content %}
+<section class="page-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'store:profile' %}">Profile</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit Profile</li>
+            </ol>
+        </nav>
+        <h1 class="page-hero-title">Edit Profile</h1>
+        <p class="page-hero-sub">Update your account details. Changes are saved to your account immediately.</p>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    <div class="panel profile-edit-panel mx-auto" data-reveal>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger py-2 px-3 d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-circle-fill mt-1"></i><div>{{ form.non_field_errors }}</div>
+                </div>
+            {% endif %}
+
+            <div class="mb-4">
+                <label class="form-label" for="profile-username">Username</label>
+                <input id="profile-username" class="form-control form-control-lg" type="text" value="{{ user.username }}" disabled aria-describedby="profile-username-help">
+                <div class="form-help" id="profile-username-help">Your username is your sign-in identifier and cannot be changed here.</div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <label class="form-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                    {{ form.first_name }}
+                    {% for error in form.first_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                    {{ form.last_name }}
+                    {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="{{ form.email.id_for_label }}">Email address</label>
+                    {{ form.email }}
+                    {% for error in form.email.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button class="btn btn-accent btn-lg rounded-pill px-4" type="submit">Save changes<i class="bi bi-check-lg ms-2"></i></button>
+                <a class="btn btn-ghost-dark btn-lg rounded-pill px-4" href="{% url 'store:profile' %}">Cancel</a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

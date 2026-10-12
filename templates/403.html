@@ -1,0 +1,13 @@
+{% extends 'store/base.html' %}
+{% block title %}Access denied — Northstar Store{% endblock %}
+{% block content %}
+<section class="error-page container">
+    <span class="error-code">403</span>
+    <h1>This shelf is staff-only.</h1>
+    <p class="error-copy">You don't have permission to view this page. If you think that's a mistake, sign in and try again.</p>
+    <div class="d-flex justify-content-center gap-3 flex-wrap mt-4">
+        <a class="btn btn-accent rounded-pill px-4" href="{% url 'store:home' %}"><i class="bi bi-house me-2"></i>Back to home</a>
+        <a class="btn btn-ghost-dark rounded-pill px-4" href="{% url 'store:login' %}">Sign in</a>
+    </div>
+</section>
+{% endblock %}

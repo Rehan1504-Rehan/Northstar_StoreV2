@@ -1,0 +1,83 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}Checkout — Northstar Store{% endblock %}
+{% block content %}
+<section class="page-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'store:cart' %}">Cart</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Checkout</li>
+            </ol>
+        </nav>
+        <h1 class="page-hero-title">Checkout</h1>
+        <p class="page-hero-sub">Almost done — tell us where to send your order. No payment is collected in this demo store.</p>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    <div class="row g-4">
+        <div class="col-lg-7" data-reveal>
+            <div class="panel">
+                <h2 class="panel-heading"><i class="bi bi-geo-alt me-2"></i>Delivery details</h2>
+                <div class="customer-callout">
+                    <span class="avatar-chip avatar-large">{{ user.username|slice:':1'|upper }}</span>
+                    <div>
+                        <strong>{{ user.get_full_name|default:user.username }}</strong>
+                        <div class="callout-sub">{{ user.email }}</div>
+                    </div>
+                </div>
+                <form method="post" novalidate class="mt-4">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}<div class="alert alert-danger py-2 px-3">{{ form.non_field_errors }}</div>{% endif %}
+                    <div class="mb-4">
+                        <label class="form-label" for="{{ form.shipping_address.id_for_label }}">{{ form.shipping_address.label }}</label>
+                        {{ form.shipping_address }}
+                        {% for error in form.shipping_address.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="{{ form.phone_number.id_for_label }}">{{ form.phone_number.label }}</label>
+                        {{ form.phone_number }}
+                        {% for error in form.phone_number.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    </div>
+                    <button class="btn btn-accent btn-lg rounded-pill px-4" type="submit">Place order · {{ cart_total|inr }}<i class="bi bi-arrow-right ms-2"></i></button>
+                </form>
+            </div>
+        </div>
+        <div class="col-lg-5" data-reveal style="--d:.08s">
+            <div class="summary-card sticky-lg-top">
+                <h2 class="summary-title">Your order</h2>
+                <div class="summary-items">
+                    {% for item in items %}
+                        <div class="mini-order-item">
+                            <div class="mini-order-image">
+                                {% if item.product.image %}
+                                    <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" loading="lazy" decoding="async" data-fallback>
+                                {% else %}
+                                    <div class="placeholder-image"><i class="bi bi-image"></i></div>
+                                {% endif %}
+                                <span class="mini-qty">{{ item.quantity }}</span>
+                            </div>
+                            <div class="flex-grow-1">
+                                <strong>{{ item.product.name }}</strong>
+                                <div class="mini-order-qty">Qty {{ item.quantity }} · {{ item.product.get_price|inr }} each</div>
+                            </div>
+                            <span>{{ item.subtotal|inr }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+                <hr class="summary-divider">
+                <div class="summary-row"><span>Subtotal</span><span>{{ cart_regular_total|inr }}</span></div>
+                {% if cart_savings > 0 %}
+                    <div class="summary-row summary-saving"><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span>−{{ cart_savings|inr }}</span></div>
+                {% endif %}
+                <div class="summary-row"><span>Shipping</span><span class="summary-free">{% if cart_total > 999 %}FREE{% else %}Calculated later{% endif %}</span></div>
+                <hr class="summary-divider">
+                <div class="summary-total"><span>Total</span><strong>{{ cart_total|inr }}</strong></div>
+                <p class="summary-foot"><i class="bi bi-info-circle me-1"></i>Your price is locked when the order is placed.</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

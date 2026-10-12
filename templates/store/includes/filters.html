@@ -1,0 +1,73 @@
+{% load store_extras %}
+<div class="filters">
+    <div class="filter-block">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="filter-title">Categories</h2>
+            <a class="filter-clear" href="{% url 'store:product_list' %}">Reset</a>
+        </div>
+        <ul class="filter-cat-list">
+            <li>
+                <a class="filter-cat{% if not selected_category %} active{% endif %}" href="{% url 'store:product_list' %}">
+                    <span><i class="bi bi-grid-3x3-gap me-2"></i>All products</span>
+                </a>
+            </li>
+            {% for category in categories %}
+                <li>
+                    <a class="filter-cat{% if selected_category.id == category.id %} active{% endif %}" href="{{ category.get_absolute_url }}">
+                        <span><i class="bi {{ category|category_icon }} me-2"></i>{{ category.name }}</span>
+                        <span class="cat-count">{{ category.product_count }}</span>
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <form method="get" class="filter-form" id="{{ form_id|default:'filterForm' }}">
+        {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+        <input type="hidden" name="sort" value="{{ sort }}">
+
+        <div class="filter-block">
+            <h2 class="filter-title">Price range</h2>
+            <div class="price-range">
+                <div class="price-field">
+                    <span class="price-symbol">₹</span>
+                    <input type="number" inputmode="numeric" min="0" name="min_price" value="{{ min_price }}" placeholder="Min" aria-label="Minimum price">
+                </div>
+                <span class="price-dash">–</span>
+                <div class="price-field">
+                    <span class="price-symbol">₹</span>
+                    <input type="number" inputmode="numeric" min="0" name="max_price" value="{{ max_price }}" placeholder="Max" aria-label="Maximum price">
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-block">
+            <h2 class="filter-title">Availability</h2>
+            <label class="filter-check">
+                <input type="radio" name="stock" value="in" {% if stock_filter != 'all' %}checked{% endif %}>
+                <span>In stock</span>
+            </label>
+            <label class="filter-check">
+                <input type="radio" name="stock" value="all" {% if stock_filter == 'all' %}checked{% endif %}>
+                <span>Include sold out</span>
+            </label>
+        </div>
+
+        <div class="filter-block">
+            <h2 class="filter-title">Discount</h2>
+            <label class="filter-check">
+                <input type="checkbox" name="sale" value="1" {% if on_sale %}checked{% endif %}>
+                <span>On sale only</span>
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-dark w-100 rounded-pill filter-apply">Apply filters</button>
+        {% if min_price or max_price or on_sale or stock_filter == 'all' or query %}
+            {% if selected_category %}
+                <a href="{{ selected_category.get_absolute_url }}" class="filter-reset-link">Clear all filters<i class="bi bi-x-lg ms-1"></i></a>
+            {% else %}
+                <a href="{% url 'store:product_list' %}" class="filter-reset-link">Clear all filters<i class="bi bi-x-lg ms-1"></i></a>
+            {% endif %}
+        {% endif %}
+    </form>
+</div>

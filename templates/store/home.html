@@ -1,0 +1,577 @@
+{% extends 'store/base.html' %}
+{% load static store_extras %}
+{% block title %}Northstar Store — Your Premium Shopping Destination{% endblock %}
+{% block content %}
+<!-- Preloader with enhanced animation -->
+<div id="sv-preloader" class="sv-preloader">
+    <div class="sv-loader">
+        <div class="sv-cart-icon-loader">
+            <i class="fas fa-shopping-cart"></i>
+        </div>
+        <div class="sv-loader-dots">
+            <span></span><span></span><span></span>
+        </div>
+        <div class="sv-loader-text">Loading Experience...</div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="sv-toast-container"></div>
+
+<div class="sv-template">
+    <!-- Hero Section -->
+    <section class="sv-hero" id="hero">
+        <div class="sv-hero-slider">
+            <div class="sv-hero-slide sv-active" id="slide1">
+                <div class="container">
+                    <div class="sv-hero-content">
+                        <div class="sv-hero-text">
+                            <span class="sv-hero-badge">⚡ Welcome to Northstar Store</span>
+                            <h1 class="sv-hero-title">
+                                <span class="sv-line1">Discover The</span>
+                                <span class="sv-line2">Future of <span class="sv-gradient-text">Tech</span></span>
+                                <span class="sv-line3">At Best Prices</span>
+                            </h1>
+                            <p class="sv-hero-desc">Discover hand-picked electronics, gaming gear and everyday essentials. Your next upgrade starts here with exclusive online deals!</p>
+                            <div class="sv-hero-features">
+                                <div class="sv-hero-feature">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Free Shipping</span>
+                                </div>
+                                <div class="sv-hero-feature">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Easy Returns</span>
+                                </div>
+                                <div class="sv-hero-feature">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Secure Payment</span>
+                                </div>
+                            </div>
+                            <div class="sv-hero-actions">
+                                <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-primary sv-btn-lg sv-hero-btn">
+                                    <span>Shop Now</span>
+                                    <i class="fas fa-arrow-right sv-btn-arrow"></i>
+                                </a>
+                                <a href="{% url 'store:deals' %}" class="sv-btn sv-btn-outline sv-btn-lg sv-hero-btn">
+                                    <span>Explore Deals</span>
+                                </a>
+                            </div>
+                            <div class="sv-hero-stats">
+                                <div class="sv-hero-stat">
+                                    <span class="sv-stat-number" data-count="50">0</span><span class="sv-stat-suffix">+</span>
+                                    <span class="sv-stat-label">Products</span>
+                                </div>
+                                <div class="sv-hero-stat">
+                                    <span class="sv-stat-number" data-count="200">0</span><span class="sv-stat-suffix">+</span>
+                                    <span class="sv-stat-label">Happy Customers</span>
+                                </div>
+                                <div class="sv-hero-stat">
+                                    <span class="sv-stat-number" data-count="10">0</span><span class="sv-stat-suffix">+</span>
+                                    <span class="sv-stat-label">Brands</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sv-hero-visual">
+                            <div class="sv-hero-image-wrapper">
+                                <div class="sv-hero-circle-bg"></div>
+                                {% with product=featured_products.0 %}
+                                <a class="sv-hero-product-card sv-floating" href="{% if product %}{{ product.get_absolute_url }}{% else %}{% url 'store:product_list' %}{% endif %}">
+                                    <div class="sv-hero-product-img">
+                                    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" fetchpriority="high">
+                                    {% else %}<div class="sv-hero-placeholder"><i class="fas fa-headphones-alt"></i><span>Your next upgrade</span></div>{% endif %}
+                                    </div>
+                                    {% if product.has_discount %}<span class="sv-hero-discount-badge">-{{ product|discount_percent }}%</span>{% endif %}
+                                </a>
+                                {% endwith %}
+                                <div class="sv-floating-element sv-float-1">
+                                    <i class="fas fa-star"></i>
+                                    <span>4.9 Rating</span>
+                                </div>
+                                <div class="sv-floating-element sv-float-2">
+                                    <i class="fas fa-truck"></i>
+                                    <span>Free Delivery</span>
+                                </div>
+                                <div class="sv-floating-element sv-float-3">
+                                    <i class="fas fa-shield-alt"></i>
+                                    <span>Warranty</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sv-hero-bg-shapes">
+                    <div class="sv-shape sv-shape-1"></div>
+                    <div class="sv-shape sv-shape-2"></div>
+                    <div class="sv-shape sv-shape-3"></div>
+                    <div class="sv-shape sv-shape-4"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Marquee Banner -->
+    <section class="sv-marquee-banner">
+        <div class="sv-marquee-track">
+            <div class="sv-marquee-content">
+                <span>🔥 MEGA SALE - UP TO 70% OFF</span>
+                <span>⚡ FREE SHIPPING ON ALL ORDERS</span>
+                <span>🎁 BUY 2 GET 1 FREE</span>
+                <span>🏷️ USE CODE: NORTHSTAR</span>
+                <span>🔥 MEGA SALE - UP TO 70% OFF</span>
+                <span>⚡ FREE SHIPPING ON ALL ORDERS</span>
+                <span>🎁 BUY 2 GET 1 FREE</span>
+                <span>🏷️ USE CODE: NORTHSTAR</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Service Features -->
+    <section class="sv-services-strip">
+        <div class="container">
+            <div class="sv-services-grid">
+                <div class="sv-service-item" data-sv-aos="fade-up">
+                    <div class="sv-service-icon">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="sv-service-text">
+                        <h4>Free Shipping</h4>
+                        <p>On orders above ₹999</p>
+                    </div>
+                </div>
+                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="100">
+                    <div class="sv-service-icon">
+                        <i class="fas fa-undo"></i>
+                    </div>
+                    <div class="sv-service-text">
+                        <h4>Easy Returns</h4>
+                        <p>30-day return policy</p>
+                    </div>
+                </div>
+                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="200">
+                    <div class="sv-service-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="sv-service-text">
+                        <h4>Secure Payment</h4>
+                        <p>100% secure checkout</p>
+                    </div>
+                </div>
+                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="300">
+                    <div class="sv-service-icon">
+                        <i class="fas fa-headset"></i>
+                    </div>
+                    <div class="sv-service-text">
+                        <h4>24/7 Support</h4>
+                        <p>Dedicated support</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Categories Section -->
+    <section class="sv-categories-section" id="categories">
+        <div class="container">
+            <div class="sv-section-header">
+                <div>
+                    <span class="sv-section-subtitle">Browse by</span>
+                    <h2 class="sv-section-title">Popular Categories</h2>
+                </div>
+                <a href="{% url 'store:product_list' %}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="sv-categories-grid">
+                {% for card in category_cards %}
+                <a class="sv-category-card" href="{{ card.category.get_absolute_url }}" data-sv-tilt data-sv-aos="fade-up" data-sv-aos-delay="{{ forloop.counter0|mul:100 }}">
+                    <div class="sv-category-icon">
+                        <i class="fas {{ card.category|category_fa_icon }}"></i>
+                    </div>
+                    <h3>{{ card.category.name }}</h3>
+                    <p>{{ card.product_count }}+ Products</p>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Flash Deals Section -->
+    {% if deal_products %}
+    <section class="sv-flash-deals" id="deals">
+        <div class="container">
+            <div class="sv-section-header">
+                <div>
+                    <span class="sv-section-subtitle">⚡ Don't Miss Out</span>
+                    <h2 class="sv-section-title">Flash Deals</h2>
+                </div>
+                <div class="sv-countdown-timer">
+                    <span class="sv-countdown-label">Ends in:</span>
+                    <div class="sv-countdown-boxes">
+                        <div class="sv-countdown-box">
+                            <span id="sv-countdown-hours">08</span>
+                            <small>Hours</small>
+                        </div>
+                        <span class="sv-countdown-sep">:</span>
+                        <div class="sv-countdown-box">
+                            <span id="sv-countdown-minutes">45</span>
+                            <small>Min</small>
+                        </div>
+                        <span class="sv-countdown-sep">:</span>
+                        <div class="sv-countdown-box">
+                            <span id="sv-countdown-seconds">30</span>
+                            <small>Sec</small>
+                        </div>
+                    </div>
+                </div>
+                <a href="{% url 'store:deals' %}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="sv-products-grid">
+                {% for product in deal_products %}
+                <div class="sv-product-card" data-sv-aos="flip-up" data-sv-aos-delay="{{ forloop.counter0|mul:100 }}">
+                    {% if product.has_discount %}
+                    <span class="sv-product-badge sv-sale">-{{ product|discount_percent }}%</span>
+                    {% endif %}
+                    <div class="sv-product-image">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
+                        {% else %}
+                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
+                        {% endif %}
+                        <div class="sv-product-actions">
+                            <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="View"><i class="fas fa-eye"></i></a>
+                            <form method="post" action="{% url 'store:add_to_cart' product.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="quantity" value="1">
+                                <button type="submit" class="sv-action-btn" title="Add to Cart"><i class="fas fa-shopping-cart"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="sv-product-info">
+                        <span class="sv-product-category">{{ product.category.name }}</span>
+                        <h3 class="sv-product-title">{{ product.name }}</h3>
+                        <div class="sv-product-rating">
+                            <div class="sv-stars">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star-half-alt"></i>
+                            </div>
+                            <span class="sv-rating-count">Hot</span>
+                        </div>
+                        <div class="sv-product-price">
+                            <span class="sv-current-price">{{ product.get_price|inr }}</span>
+                            {% if product.has_discount %}
+                            <span class="sv-original-price">{{ product.price|inr }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="sv-deal-progress">
+                            <div class="sv-progress-bar">
+                                <div class="sv-progress-fill" style="width: {{ forloop.counter|mul:15|add:30 }}%"></div>
+                            </div>
+                            <span class="sv-sold-count">{{ forloop.counter|mul:15|add:30 }}% Sold</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Promo Banners -->
+    <section class="sv-promo-banners">
+        <div class="container">
+            <div class="sv-promo-grid">
+                <div class="sv-promo-card sv-promo-large" data-sv-aos="fade-right">
+                    <div class="sv-promo-content">
+                        <span class="sv-promo-tag">New Collection</span>
+                        <h2>Summer Fashion</h2>
+                        <p>Up to 50% Off on selected items</p>
+                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-primary">Shop Now <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)"></div>
+                </div>
+                <div class="sv-promo-card sv-promo-small" data-sv-aos="fade-left" data-sv-aos-delay="100">
+                    <div class="sv-promo-content">
+                        <span class="sv-promo-tag">Limited Offer</span>
+                        <h3>Gadgets & Electronics</h3>
+                        <p>Starting from ₹499</p>
+                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-outline sv-btn-sm" style="color:#fff;border-color:#fff;">Explore</a>
+                    </div>
+                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"></div>
+                </div>
+                <div class="sv-promo-card sv-promo-small" data-sv-aos="fade-left" data-sv-aos-delay="200">
+                    <div class="sv-promo-content">
+                        <span class="sv-promo-tag">Weekend Deal</span>
+                        <h3>Home & Kitchen</h3>
+                        <p>Flat 30% Off</p>
+                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-outline sv-btn-sm" style="color:#fff;border-color:#fff;">Shop Now</a>
+                    </div>
+                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Products -->
+    <section class="sv-featured-products" id="featured">
+        <div class="container">
+            <div class="sv-section-header">
+                <div>
+                    <span class="sv-section-subtitle">Handpicked for You</span>
+                    <h2 class="sv-section-title">Featured Products</h2>
+                </div>
+                <a href="{% url 'store:product_list' %}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="sv-products-grid" id="sv-featured-grid">
+                {% for product in featured_products %}
+                <div class="sv-product-card" data-sv-aos="fade-up" data-sv-aos-delay="{{ forloop.counter0|mul:100 }}">
+                    {% if product.has_discount %}
+                    <span class="sv-product-badge sv-sale">-{{ product|discount_percent }}%</span>
+                    {% else %}
+                    <span class="sv-product-badge sv-new">New</span>
+                    {% endif %}
+                    <div class="sv-product-image">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
+                        {% else %}
+                        <img src="https://images.unsplash.com/photo-1546868871-af0de0ae72be?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
+                        {% endif %}
+                        <div class="sv-product-actions">
+                            <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="Quick View"><i class="fas fa-eye"></i></a>
+                            <form method="post" action="{% url 'store:add_to_cart' product.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="quantity" value="1">
+                                <button type="submit" class="sv-action-btn" title="Add to Cart"><i class="fas fa-shopping-cart"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="sv-product-info">
+                        <span class="sv-product-category">{{ product.category.name }}</span>
+                        <h3 class="sv-product-title">
+                            <a href="{{ product.get_absolute_url }}" style="color:inherit;text-decoration:none;">{{ product.name }}</a>
+                        </h3>
+                        <div class="sv-product-rating">
+                            <div class="sv-stars">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <span class="sv-rating-count">Top Rated</span>
+                        </div>
+                        <div class="sv-product-price">
+                            <span class="sv-current-price">{{ product.get_price|inr }}</span>
+                            {% if product.has_discount %}
+                            <span class="sv-original-price">{{ product.price|inr }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Special Offer Banner -->
+    <section class="sv-special-offer" data-sv-aos="zoom-in">
+        <div class="container">
+            <div class="sv-offer-content">
+                <div class="sv-offer-text">
+                    <span class="sv-offer-tag">Limited Time Offer</span>
+                    <h2>Super Sale <span class="sv-gradient-text">50% OFF</span></h2>
+                    <p>Don't miss out on our biggest sale! Browse the best deals across all categories. Shop now and save big!</p>
+                    <div class="sv-offer-timer">
+                        <div class="sv-offer-timer-box">
+                            <span class="sv-offer-days">15</span>
+                            <small>Days</small>
+                        </div>
+                        <div class="sv-offer-timer-box">
+                            <span class="sv-offer-hrs">08</span>
+                            <small>Hours</small>
+                        </div>
+                        <div class="sv-offer-timer-box">
+                            <span class="sv-offer-mins">45</span>
+                            <small>Mins</small>
+                        </div>
+                        <div class="sv-offer-timer-box">
+                            <span class="sv-offer-secs">30</span>
+                            <small>Secs</small>
+                        </div>
+                    </div>
+                    <a href="{% url 'store:deals' %}" class="sv-btn sv-btn-primary sv-btn-lg sv-glow-btn">Grab The Deal <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="sv-offer-visual">
+                    <div class="sv-offer-circle"></div>
+                    <div class="sv-offer-percent">50<span>%</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Category Sections (from Django data) -->
+    {% for section in category_sections %}
+    <section class="sv-categories-section{% if forloop.counter|divisibleby:2 %} sv-featured-products{% endif %}" id="category-{{ section.category.slug }}">
+        <div class="container">
+            <div class="sv-section-header">
+                <div>
+                    <span class="sv-section-subtitle">{{ section.product_count }} product{{ section.product_count|pluralize }}</span>
+                    <h2 class="sv-section-title">{{ section.category.name }}</h2>
+                </div>
+                <a href="{{ section.category.get_absolute_url }}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="sv-products-grid">
+                {% for product in section.products %}
+                <div class="sv-product-card" data-sv-aos="fade-up" data-sv-aos-delay="{{ forloop.counter0|mul:100 }}">
+                    {% if product.has_discount %}
+                    <span class="sv-product-badge sv-sale">-{{ product|discount_percent }}%</span>
+                    {% endif %}
+                    <div class="sv-product-image">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
+                        {% else %}
+                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
+                        {% endif %}
+                        <div class="sv-product-actions">
+                            <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="View"><i class="fas fa-eye"></i></a>
+                            <form method="post" action="{% url 'store:add_to_cart' product.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="quantity" value="1">
+                                <button type="submit" class="sv-action-btn" title="Add to Cart"><i class="fas fa-shopping-cart"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="sv-product-info">
+                        <span class="sv-product-category">{{ product.category.name }}</span>
+                        <h3 class="sv-product-title">
+                            <a href="{{ product.get_absolute_url }}" style="color:inherit;text-decoration:none;">{{ product.name }}</a>
+                        </h3>
+                        <div class="sv-product-price">
+                            <span class="sv-current-price">{{ product.get_price|inr }}</span>
+                            {% if product.has_discount %}
+                            <span class="sv-original-price">{{ product.price|inr }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endfor %}
+
+    <!-- Brands Section -->
+    <section class="sv-brands-section">
+        <div class="container">
+            <div class="sv-section-header sv-centered">
+                <span class="sv-section-subtitle">Our Partners</span>
+                <h2 class="sv-section-title">Top Brands</h2>
+            </div>
+            <div class="sv-brands-slider">
+                <div class="sv-brands-track">
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-apple"></i><span>Apple</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-samsung"></i><span>Samsung</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-google"></i><span>Google</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-microsoft"></i><span>Microsoft</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-amazon"></i><span>Amazon</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-spotify"></i><span>Spotify</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-apple"></i><span>Apple</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-samsung"></i><span>Samsung</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-google"></i><span>Google</span></div></div>
+                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-microsoft"></i><span>Microsoft</span></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="sv-testimonials">
+        <div class="container">
+            <div class="sv-section-header sv-centered">
+                <span class="sv-section-subtitle">What People Say</span>
+                <h2 class="sv-section-title">Customer Reviews</h2>
+            </div>
+            <div class="sv-testimonials-grid">
+                <div class="sv-testimonial-card" data-sv-aos="fade-up">
+                    <div class="sv-testimonial-stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <p class="sv-testimonial-text">"Amazing shopping experience! The delivery was super fast and the product quality exceeded my expectations. Will definitely shop again!"</p>
+                    <div class="sv-testimonial-author">
+                        <div class="sv-author-avatar">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User" loading="lazy">
+                        </div>
+                        <div class="sv-author-info">
+                            <h4>Sarah Johnson</h4>
+                            <span>Verified Buyer</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sv-testimonial-card" data-sv-aos="fade-up" data-sv-aos-delay="100">
+                    <div class="sv-testimonial-stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <p class="sv-testimonial-text">"Great prices and excellent customer service. The return process was hassle-free. This is now my go-to online store for everything!"</p>
+                    <div class="sv-testimonial-author">
+                        <div class="sv-author-avatar">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="User" loading="lazy">
+                        </div>
+                        <div class="sv-author-info">
+                            <h4>Mike Chen</h4>
+                            <span>Verified Buyer</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sv-testimonial-card" data-sv-aos="fade-up" data-sv-aos-delay="200">
+                    <div class="sv-testimonial-stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i>
+                    </div>
+                    <p class="sv-testimonial-text">"The variety of products available is incredible. I found everything I needed at competitive prices. The app is also very user-friendly!"</p>
+                    <div class="sv-testimonial-author">
+                        <div class="sv-author-avatar">
+                            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" alt="User" loading="lazy">
+                        </div>
+                        <div class="sv-author-info">
+                            <h4>Emily Davis</h4>
+                            <span>Verified Buyer</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Newsletter -->
+    <section class="sv-newsletter">
+        <div class="container">
+            <div class="sv-newsletter-content" data-sv-aos="fade-up">
+                <div class="sv-newsletter-text">
+                    <h2>Stay in the Loop</h2>
+                    <p>Subscribe to our newsletter for exclusive deals, new arrivals, and insider-only discounts.</p>
+                </div>
+                <form class="sv-newsletter-form" id="sv-newsletter-form">
+                    <div class="sv-newsletter-input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" placeholder="Enter your email address" required>
+                        <button type="submit" class="sv-btn sv-btn-primary">
+                            Subscribe <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <p class="sv-newsletter-note"><i class="fas fa-lock"></i> We respect your privacy. Unsubscribe anytime.</p>
+                </form>
+            </div>
+        </div>
+        <div class="sv-nl-shape sv-nl-shape-1"></div>
+        <div class="sv-nl-shape sv-nl-shape-2"></div>
+    </section>
+</div>
+
+<!-- Scroll to Top -->
+<button class="sv-scroll-top" id="sv-scroll-top">
+    <i class="fas fa-chevron-up"></i>
+</button>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'store/js/shopverse.js' %}"></script>
+{% endblock %}

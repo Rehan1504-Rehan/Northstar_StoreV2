@@ -1,0 +1,61 @@
+{% extends 'store/base.html' %}
+{% block title %}{{ page_title }} — Northstar Store{% endblock %}
+{% block content %}
+<section class="page-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ page_title }}</li>
+            </ol>
+        </nav>
+        <h1 class="page-hero-title">{{ page_title }}</h1>
+        <p class="page-hero-sub">Everything you need to know, kept short and honest.</p>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    <div class="panel info-panel mx-auto" data-reveal>
+        {% if page_key == 'shipping' %}
+            <h2><i class="bi bi-truck me-2"></i>How shipping works</h2>
+            <ul class="info-list">
+                <li><b>Dispatch:</b> in-stock orders are packed and handed to our courier within 1–2 business days.</li>
+                <li><b>Delivery time:</b> most metro addresses receive orders in 2–5 business days; other pin codes can take a little longer.</li>
+                <li><b>Shipping fee:</b> free on all orders above ₹999. Smaller orders show any shipping charge clearly before you place the order.</li>
+                <li><b>Tracking:</b> every order page shows the current status, from pending to delivered.</li>
+                <li><b>Packaging:</b> products are packed securely with protective, mostly paper-based materials.</li>
+            </ul>
+        {% elif page_key == 'returns' %}
+            <h2><i class="bi bi-arrow-repeat me-2"></i>30-day easy returns</h2>
+            <ul class="info-list">
+                <li><b>Window:</b> you can request a return within 30 days of delivery.</li>
+                <li><b>Condition:</b> items should be unused, in original packaging, with all accessories included.</li>
+                <li><b>Start a return:</b> sign in, open your order from “My orders”, and contact us with the order number.</li>
+                <li><b>Refunds:</b> once the item is received and checked, the refund is processed to your original payment method within 5–7 business days.</li>
+                <li><b>Damaged or wrong item?</b> Tell us within 48 hours of delivery and we will replace it or refund you in full.</li>
+            </ul>
+        {% elif page_key == 'privacy' %}
+            <h2><i class="bi bi-shield-lock me-2"></i>Your privacy, respected</h2>
+            <ul class="info-list">
+                <li><b>What we collect:</b> your name, email, delivery address and phone number — only what an order needs.</li>
+                <li><b>What we never do:</b> we do not sell, rent or trade your personal information with third parties.</li>
+                <li><b>Passwords:</b> stored only as secure one-way hashes; even our team cannot see them.</li>
+                <li><b>Cookies:</b> used for sign-in sessions and your cart — nothing invasive.</li>
+                <li><b>Your control:</b> contact us any time to review or delete the data linked to your account.</li>
+            </ul>
+        {% elif page_key == 'terms' %}
+            <h2><i class="bi bi-file-text me-2"></i>The straightforward terms</h2>
+            <ul class="info-list">
+                <li><b>Pricing:</b> all prices are shown in Indian Rupees (₹) and already include any listed discounts.</li>
+                <li><b>Availability:</b> stock levels are shown live; an order is confirmed only after checkout succeeds.</li>
+                <li><b>Order snapshots:</b> the price you pay is frozen on your order, even if a price changes later.</li>
+                <li><b>Accounts:</b> keep your sign-in details private; you are responsible for orders placed from your account.</li>
+                <li><b>Fair use:</b> we may cancel orders that abuse promotions or show fraudulent activity.</li>
+            </ul>
+        {% endif %}
+        <div class="info-cta">
+            <a href="{% url 'store:product_list' %}" class="btn btn-accent rounded-pill px-4">Back to shopping<i class="bi bi-arrow-right ms-2"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}
