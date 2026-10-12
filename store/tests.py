@@ -981,3 +981,100 @@ class AdminProductChangelistTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "8")
         self.assertLessEqual(len(captured.captured_queries), 8)
+
+
+class HostConfigurationTests(TestCase):
+    """The dashboard values that take a production site offline.
+
+    A Host header that matches nothing in ALLOWED_HOSTS is answered with a bare
+    "400 Bad Request" page, which looks like a broken deployment rather than a
+    configuration typo. These tests pin the behaviour of the parsers that turn
+    those environment values into settings.
+    """
+
+    def test_markdown_brackets_in_allowed_hosts_are_ignored(self):
+        from ecommerce.settings import bare_host
+
+        # The form copied from documentation or chat: [my-app.onrender.com]
+        self.assertEqual(bare_host("[northstar-storev2.onrender.com]"), "northstar-storev2.onrender.com")
+
+    def test_surrounding_quotes_and_whitespace_are_ignored(self):
+        from ecommerce.settings import bare_host
+
+        self.assertEqual(bare_host('"northstar-storev2.onrender.com"'), "northstar-storev2.onrender.com")
+        self.assertEqual(bare_host("'northstar-storev2.onrender.com'"), "northstar-storev2.onrender.com")
+        self.assertEqual(bare_host("  northstar-storev2.onrender.com  "), "northstar-storev2.onrender.com")
+
+    def test_full_urls_are_reduced_to_the_hostname(self):
+        from ecommerce.settings import bare_host
+
+        self.assertEqual(bare_host("https://northstar-storev2.onrender.com/"), "northstar-storev2.onrender.com")
+        self.assertEqual(bare_host("http://northstar-storev2.onrender.com:8000/shop"), "northstar-storev2.onrender.com")
+        self.assertEqual(bare_host("NORTHSTAR-STOREV2.ONRENDER.COM"), "northstar-storev2.onrender.com")
+
+    def test_host_list_is_cleaned_and_deduplicated(self):
+        from ecommerce.settings import build_allowed_hosts
+
+        env = {"ALLOWED_HOSTS": "[northstar-storev2.onrender.com], https://shop.example.com/"}
+        with patch.dict(os.environ, env, clear=False):
+            hosts = build_allowed_hosts(debug=False)
+        self.assertIn("northstar-storev2.onrender.com", hosts)
+        self.assertIn("shop.example.com", hosts)
+        # No decorated value survives into the setting Django matches against.
+        self.assertFalse([host for host in hosts if host != bare_host_of(host)])
+
+    def test_the_hostname_the_platform_advertises_is_always_accepted(self):
+        from ecommerce.settings import build_allowed_hosts
+
+        # A stale ALLOWED_HOSTS naming the wrong service no longer takes the
+        # site down: Render tells us the real hostname at runtime.
+        env = {
+            "ALLOWED_HOSTS": "[northstar-store.onrender.com]",
+            "RENDER_EXTERNAL_HOSTNAME": "northstar-storev2.onrender.com",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            hosts = build_allowed_hosts(debug=False)
+        self.assertIn("northstar-storev2.onrender.com", hosts)
+        self.assertIn("northstar-store.onrender.com", hosts)
+
+    def test_platform_url_variable_is_reduced_to_a_hostname(self):
+        from ecommerce.settings import build_allowed_hosts
+
+        env = {"RENDER_EXTERNAL_URL": "https://northstar-storev2.onrender.com"}
+        with patch.dict(os.environ, env, clear=False):
+            hosts = build_allowed_hosts(debug=True)
+        self.assertIn("northstar-storev2.onrender.com", hosts)
+
+    def test_csrf_origins_get_a_scheme(self):
+        from ecommerce.settings import build_csrf_trusted_origins
+
+        env = {"CSRF_TRUSTED_ORIGINS": "northstar-storev2.onrender.com"}
+        with patch.dict(os.environ, env, clear=False):
+            origins = build_csrf_trusted_origins(debug=False)
+        self.assertIn("https://northstar-storev2.onrender.com", origins)
+
+    def test_quoted_database_url_still_parses(self):
+        from ecommerce.settings import env
+
+        with patch.dict(os.environ, {"DATABASE_URL": '"postgresql://u:p@host/db"'}, clear=False):
+            self.assertEqual(env("DATABASE_URL"), "postgresql://u:p@host/db")
+
+
+def bare_host_of(value):
+    from ecommerce.settings import bare_host
+
+    return bare_host(value)
+
+
+class HostHeaderRoutingTests(TestCase):
+    """Requests to the deployed hostname must not be answered with 400."""
+
+    @override_settings(ALLOWED_HOSTS=["northstar-storev2.onrender.com"])
+    def test_storefront_answers_for_the_render_hostname(self):
+        response = self.client.get(reverse("store:home"), HTTP_HOST="northstar-storev2.onrender.com")
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(ALLOWED_HOSTS=["northstar-storev2.onrender.com"])
+    def test_an_unlisted_host_is_still_rejected(self):
+        response = self.client.get(reverse("store:home"), HTTP_HOST="evil.example.com")
+        self.assertEqual(response.status_code, 400)

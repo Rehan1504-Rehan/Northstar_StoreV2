@@ -258,8 +258,8 @@ The total is never refunded automatically: the project deliberately has no payme
 | `SECRET_KEY` | `a-long-random-string` | Required secret; never commit it. |
 | `DEBUG` | `True` | Set `False`. |
 | `DATABASE_URL` | empty for SQLite | Railway PostgreSQL supplies this automatically. |
-| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Include the Railway public domain, comma separated. |
-| `CSRF_TRUSTED_ORIGINS` | empty | Use full HTTPS origins, for example `https://your-app.up.railway.app`. |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Include the Render/Railway public domain, comma separated. The hostname the platform advertises (`RENDER_EXTERNAL_HOSTNAME`, `RAILWAY_PUBLIC_DOMAIN`, `HEROKU_APP_DOMAIN`) is added automatically. |
+| `CSRF_TRUSTED_ORIGINS` | empty | Use full HTTPS origins, for example `https://your-app.onrender.com`. A missing `https://` is added for you. |
 | `ADMIN_USERNAME` | `ADMIN` | Private Railway variable. |
 | `ADMIN_PASSWORD` | empty in Git | Private Railway variable; use a strong password. |
 | `ADMIN_EMAIL` | `admin@example.com` | Private Railway variable. |
@@ -438,6 +438,31 @@ gunicorn ecommerce.wsgi --workers 2 --threads 4 --timeout 60 --graceful-timeout 
 On Windows, Gunicorn is primarily intended for Railway/Linux. Use `python manage.py runserver` for local Windows development.
 
 ## Troubleshooting
+
+### `400 Bad Request` on Render or Railway
+
+A bare "400 Bad Request" page with no traceback means the request's `Host`
+header matched nothing in `ALLOWED_HOSTS`, so Django rejected it before any view
+ran. The usual causes are a value that does not match the real hostname, or a
+value that arrived with decoration attached:
+
+| Wrong | Why | Right |
+| --- | --- | --- |
+| `[northstar-storev2.onrender.com]` | Markdown brackets are compared literally. | `northstar-storev2.onrender.com` |
+| `northstar-store.onrender.com` | Stale name; the service is `northstar-storev2`. | `northstar-storev2.onrender.com` |
+| `https://northstar-storev2.onrender.com` | A hostname, not a URL: no scheme, no trailing slash, no port. | `northstar-storev2.onrender.com` |
+
+Optional decoration is now stripped automatically, and the hostname the platform
+publishes for the service is always accepted, so a typo in the dashboard no
+longer takes the site down. Correcting the variable is still worthwhile, and the
+deploy log warns when `ALLOWED_HOSTS` is left as `*`.
+
+To confirm what the running service actually loaded, open the Render **Shell**
+and run:
+
+```bash
+python -c "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','ecommerce.settings');django.setup();from django.conf import settings;print(settings.ALLOWED_HOSTS)"
+```
 
 ### `DisallowedHost` on Railway
 

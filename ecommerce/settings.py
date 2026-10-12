@@ -4,8 +4,10 @@ The project deliberately keeps configuration in one beginner-friendly file. In
 production, all sensitive values come from environment variables.
 """
 from pathlib import Path
+from urllib.parse import urlsplit
 import os
 import secrets
+import warnings
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -16,15 +18,139 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+# Environment values are easy to fill in slightly wrongly: people paste a full
+# URL where a hostname is expected, wrap the value in quotes, or copy the
+# markdown form of a variable straight out of a chat message
+# (``ALLOWED_HOSTS=[my-app.onrender.com]``). Django compares the Host header to
+# ALLOWED_HOSTS literally, so any decoration like that makes every request fail
+# with a bare "400 Bad Request" and no clue as to why.
+#
+# Rather than hoping every dashboard value is pristine, normalise what we read:
+# a stray bracket or quote then degrades to a working site instead of an
+# unexplained outage.
+_DECORATION_PAIRS = (('"', '"'), ("'", "'"), ("[", "]"), ("(", ")"), ("<", ">"))
+_LOCAL_HOSTNAMES = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"}
+
+# Variables the hosting platform sets by itself. Render injects
+# RENDER_EXTERNAL_HOSTNAME/RENDER_EXTERNAL_URL; Railway injects the RAILWAY_*
+# pair; Heroku injects HEROKU_APP_DOMAIN. Reading them means a correct deploy
+# does not depend on someone typing the hostname into the dashboard.
+_PLATFORM_HOST_VARIABLES = (
+    "RENDER_EXTERNAL_HOSTNAME",
+    "RENDER_EXTERNAL_URL",
+    "RAILWAY_PUBLIC_DOMAIN",
+    "RAILWAY_STATIC_URL",
+    "HEROKU_APP_DOMAIN",
+)
+
+
+def clean_env_value(value: str) -> str:
+    """Strip whitespace, matching quotes, and matching brackets from a value."""
+    cleaned = value.strip()
+    while len(cleaned) > 1:
+        for opening, closing in _DECORATION_PAIRS:
+            if cleaned.startswith(opening) and cleaned.endswith(closing):
+                cleaned = cleaned[1:-1].strip()
+                break
+        else:
+            return cleaned
+    return cleaned
+
+
+def env(name: str, default: str = "") -> str:
+    """Read an environment variable and clean it up."""
+    return clean_env_value(os.getenv(name, default))
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     """Read a conventional true/false environment variable."""
-    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+    return env(name, str(default)).lower() in {"1", "true", "yes", "on"}
+
+
+def csv_env(name: str, default: str = "") -> list[str]:
+    """Read a comma-separated environment variable into a clean list."""
+    return [value for value in (clean_env_value(part) for part in env(name, default).split(",")) if value]
+
+
+def bare_host(value: str) -> str:
+    """Reduce anything host-like to the bare hostname Django matches on.
+
+    Accepts ``my-app.onrender.com``, ``https://my-app.onrender.com/``,
+    ``my-app.onrender.com:443`` and ``user:pass@my-app.onrender.com`` alike.
+    """
+    host = clean_env_value(value)
+    if "://" in host:
+        host = urlsplit(host).hostname or ""
+    host = host.split("/")[0].split("?")[0].split("#")[0]
+    if "@" in host:
+        host = host.rsplit("@", 1)[1]
+    host = host.strip().rstrip(".").lower()
+    # Django strips the port before matching, so drop it here too.
+    if host.count(":") == 1 and host.rsplit(":", 1)[1].isdigit():
+        host = host.rsplit(":", 1)[0]
+    return host
+
+
+def platform_hostnames() -> list[str]:
+    """Hostnames published by the hosting platform itself, if any."""
+    hosts: list[str] = []
+    for variable in _PLATFORM_HOST_VARIABLES:
+        host = bare_host(env(variable))
+        if host and host not in hosts:
+            hosts.append(host)
+    return hosts
+
+
+def build_allowed_hosts(debug: bool) -> list[str]:
+    """Build ALLOWED_HOSTS from the environment plus platform metadata."""
+    hosts = [host for host in (bare_host(value) for value in csv_env("ALLOWED_HOSTS")) if host]
+
+    # Always accept the hostname the platform advertises for this service: it
+    # is authoritative, and it keeps the site reachable when ALLOWED_HOSTS is
+    # missing, stale, or names a different service.
+    for host in platform_hostnames():
+        if host not in hosts:
+            hosts.append(host)
+
+    if not hosts and debug:
+        # A permissive list keeps local work usable through a dev tunnel or
+        # preview host. Production never falls back to this.
+        return ["localhost", "127.0.0.1", "[::1]", "testserver", "*"]
+    return hosts
+
+
+def _csrf_origin(value: str, debug: bool) -> str:
+    """Return a CSRF_TRUSTED_ORIGINS entry, adding a scheme when it is missing."""
+    origin = clean_env_value(value).rstrip("/")
+    if not origin:
+        return ""
+    if origin.startswith("//"):
+        return f"{'http' if debug else 'https'}:{origin}"
+    if "://" not in origin:
+        scheme = "http" if bare_host(origin) in _LOCAL_HOSTNAMES else ("http" if debug else "https")
+        return f"{scheme}://{origin}"
+    return origin
+
+
+def build_csrf_trusted_origins(debug: bool) -> list[str]:
+    """Build CSRF_TRUSTED_ORIGINS from the environment plus platform metadata.
+
+    Django requires a scheme (``https://my-app.onrender.com``) and rejects a
+    bare hostname, so add the missing scheme instead of failing every form post
+    with "CSRF verification failed".
+    """
+    origins = [origin for origin in (_csrf_origin(value, debug) for value in csv_env("CSRF_TRUSTED_ORIGINS")) if origin]
+    for host in platform_hostnames():
+        origin = f"https://{host}"
+        if origin not in origins:
+            origins.append(origin)
+    return origins
 
 
 DEBUG = env_bool("DEBUG", True)
 # A random development key keeps a brand-new checkout easy to run without
 # placing a reusable secret in Git. Production must provide its own key.
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = env("SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
         SECRET_KEY = secrets.token_urlsafe(50)
@@ -32,20 +158,12 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("Set SECRET_KEY in the production environment.")
 
 
-def csv_env(name: str, default: str = "") -> list[str]:
-    return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
-
-
-# In local DEBUG mode, ``*`` makes the app usable through a dev tunnel or
-# Arena preview host. Production never uses this fallback: set an explicit
-# comma-separated ALLOWED_HOSTS value there.
-if "ALLOWED_HOSTS" in os.environ:
-    ALLOWED_HOSTS = csv_env("ALLOWED_HOSTS")
-elif DEBUG:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver", "*"]
-else:
-    ALLOWED_HOSTS = []
-CSRF_TRUSTED_ORIGINS = csv_env("CSRF_TRUSTED_ORIGINS")
+# In local DEBUG mode, a missing value falls back to a permissive list so the
+# app is usable through a dev tunnel or preview host. Production must set an
+# explicit comma-separated ALLOWED_HOSTS value; the hostname the hosting
+# platform advertises is added automatically either way.
+ALLOWED_HOSTS = build_allowed_hosts(DEBUG)
+CSRF_TRUSTED_ORIGINS = build_csrf_trusted_origins(DEBUG)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -90,11 +208,15 @@ TEMPLATES = [
 WSGI_APPLICATION = "ecommerce.wsgi.application"
 ASGI_APPLICATION = "ecommerce.asgi.application"
 
-# SQLite is convenient for local work. Railway supplies DATABASE_URL for
-# PostgreSQL, which dj-database-url parses for us.
+# SQLite is convenient for local work. Render and Railway supply DATABASE_URL
+# for PostgreSQL, which dj-database-url parses for us. The URL is cleaned first
+# so a value pasted with surrounding quotes still connects.
+database_url = env("DATABASE_URL")
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}",
+    "default": dj_database_url.parse(database_url, conn_max_age=600, conn_health_checks=True)
+    if database_url
+    else dj_database_url.parse(
+        f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}",
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -181,8 +303,11 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-# Tell Django's checks (and people reading the deployment) which host setting
-# applies when DEBUG=False. A missing production value should be fixed rather
-# than silently accepting every host.
-if not DEBUG and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = []
+# A permissive ALLOWED_HOSTS is easy to set and hard to notice; warn about it
+# in the deploy log, since the site would answer every hostname.
+if ALLOWED_HOSTS == ["*"] and not DEBUG:
+    warnings.warn(
+        "ALLOWED_HOSTS is '*': every hostname is accepted. List your public "
+        "hostname instead, for example ALLOWED_HOSTS=northstar-storev2.onrender.com.",
+        stacklevel=2,
+    )
