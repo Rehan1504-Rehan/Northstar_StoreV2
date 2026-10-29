@@ -12,7 +12,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, FloatField, Prefetch, Q, Value
 from django.db.models.functions import Coalesce
-from django.http import Http404, HttpRequest, HttpResponse, StreamingHttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.static import serve as static_serve
@@ -365,18 +365,23 @@ def cart_view(request: HttpRequest) -> HttpResponse:
 @require_POST
 @login_required
 def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     product = get_object_or_404(Product, pk=product_id, available=True)
+
+    def add_error(message: str, status: int = 400):
+        if wants_json:
+            return JsonResponse({"ok": False, "message": message}, status=status)
+        messages.error(request, message)
+        return redirect(product.get_absolute_url())
     try:
         quantity = int(request.POST.get("quantity", 1))
     except (TypeError, ValueError):
         quantity = 0
 
     if quantity < 1:
-        messages.error(request, "Choose a quantity of at least one.")
-        return redirect(product.get_absolute_url())
+        return add_error("Choose a quantity of at least one.")
     if quantity > product.stock_quantity:
-        messages.error(request, f"Only {product.stock_quantity} item(s) are currently in stock.")
-        return redirect(product.get_absolute_url())
+        return add_error(f"Only {product.stock_quantity} item(s) are currently in stock.")
 
     cart = _get_user_cart(request)
     item, created = CartItem.objects.get_or_create(
@@ -387,15 +392,18 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
     if not created:
         new_quantity = item.quantity + quantity
         if new_quantity > product.stock_quantity:
-            messages.error(
-                request,
-                f"Your cart cannot contain more than {product.stock_quantity} of this product.",
-            )
-            return redirect(product.get_absolute_url())
+            return add_error(f"Your cart cannot contain more than {product.stock_quantity} of this product.")
         item.quantity = new_quantity
         item.save(update_fields=["quantity"])
     cart.save(update_fields=["updated_at"])
-    messages.success(request, f"{product.name} was added to your cart.")
+    success_message = f"{product.name} was added to your cart."
+    if wants_json:
+        return JsonResponse({
+            "ok": True,
+            "message": success_message,
+            "cart_count": cart.item_count(),
+        })
+    messages.success(request, success_message)
     if request.POST.get("buy_now") == "1":
         return redirect("store:checkout")
     return redirect("store:cart")
@@ -414,21 +422,31 @@ def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
     except (TypeError, ValueError):
         quantity = 0
 
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if quantity <= 0:
         item.delete()
-        messages.info(request, f"{item.product.name} was removed from your cart.")
+        message = f"{item.product.name} was removed from your cart."
+        if not wants_json:
+            messages.info(request, message)
     elif not item.product.available:
-        messages.error(request, f"{item.product.name} is no longer available.")
+        message = f"{item.product.name} is no longer available."
+        if wants_json:
+            return JsonResponse({"ok": False, "message": message}, status=400)
+        messages.error(request, message)
     elif quantity > item.product.stock_quantity:
-        messages.error(
-            request,
-            f"Only {item.product.stock_quantity} item(s) of {item.product.name} are in stock.",
-        )
+        message = f"Only {item.product.stock_quantity} item(s) of {item.product.name} are in stock."
+        if wants_json:
+            return JsonResponse({"ok": False, "message": message}, status=400)
+        messages.error(request, message)
     else:
         item.quantity = quantity
         item.save(update_fields=["quantity"])
         item.cart.save(update_fields=["updated_at"])
-        messages.success(request, "Your cart was updated.")
+        message = "Your cart was updated."
+        if not wants_json:
+            messages.success(request, message)
+    if wants_json:
+        return JsonResponse({"ok": True, "message": message, "cart_count": item.cart.item_count()})
     return redirect("store:cart")
 
 
@@ -437,8 +455,12 @@ def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
 def remove_from_cart(request: HttpRequest, item_id: int) -> HttpResponse:
     item = get_object_or_404(CartItem, pk=item_id, cart__user=request.user)
     name = item.product.name
+    cart = item.cart
     item.delete()
-    messages.info(request, f"{name} was removed from your cart.")
+    message = f"{name} was removed from your cart."
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "message": message, "cart_count": cart.item_count()})
+    messages.info(request, message)
     return redirect("store:cart")
 
 

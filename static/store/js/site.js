@@ -199,3 +199,75 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }, 6500);
 });
+
+// Add-to-cart uses the same POST/CSRF protection, but updates the page in place.
+document.addEventListener("submit", async (event) => {
+    const form = event.target.closest('form[action*="/cart/add/"], form[action*="/cart/update/"], form[action*="/cart/remove/"]');
+    if (!form || event.submitter?.name === "buy_now") return;
+    event.preventDefault();
+
+    const button = event.submitter || form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+        const response = await fetch(form.action, {
+            method: "POST",
+            body: new FormData(form, event.submitter || undefined),
+            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+            credentials: "same-origin",
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || "Could not add this item to your cart.");
+
+        updateCartBadge(result.cart_count);
+        if (form.action.includes("/cart/update/") || form.action.includes("/cart/remove/")) {
+            const response = await fetch(window.location.href, { credentials: "same-origin" });
+            const html = await response.text();
+            const nextDocument = new DOMParser().parseFromString(html, "text/html");
+            const currentSection = document.querySelector("main .section-block");
+            const nextSection = nextDocument.querySelector("main .section-block");
+            if (currentSection && nextSection) currentSection.innerHTML = nextSection.innerHTML;
+            const currentHero = document.querySelector(".page-hero-sub");
+            const nextHero = nextDocument.querySelector(".page-hero-sub");
+            if (currentHero && nextHero) currentHero.textContent = nextHero.textContent;
+        }
+        showCartNotice(result.message, false);
+    } catch (error) {
+        showCartNotice(error.message || "Unable to add this item. Please try again.", true);
+    } finally {
+        if (button) button.disabled = false;
+    }
+});
+
+function updateCartBadge(count) {
+    const cartLink = document.querySelector(".header-cart");
+    if (!cartLink) return;
+    let badge = cartLink.querySelector(".cart-badge");
+    if (!count) {
+        badge?.remove();
+        cartLink.setAttribute("aria-label", "Cart");
+        return;
+    }
+    if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "cart-badge";
+        cartLink.appendChild(badge);
+    }
+    badge.textContent = count;
+    cartLink.setAttribute("aria-label", `Cart, ${count} items`);
+}
+
+function showCartNotice(message, isError) {
+    let stack = document.querySelector(".toast-stack");
+    if (!stack) {
+        stack = document.createElement("div");
+        stack.className = "container toast-stack";
+        stack.setAttribute("aria-live", "polite");
+        document.querySelector("main")?.prepend(stack);
+    }
+    const alert = document.createElement("div");
+    alert.className = `alert ${isError ? "alert-danger" : "alert-success"} shadow-sm toast-alert`;
+    alert.setAttribute("role", "status");
+    alert.textContent = message;
+    stack.replaceChildren(alert);
+    window.setTimeout(() => alert.remove(), 4000);
+}
