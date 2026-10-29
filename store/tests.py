@@ -17,7 +17,7 @@ from django.urls import reverse
 from ecommerce.startup import run_startup_tasks
 
 from .admin import ProductAdminForm
-from .models import CartItem, Category, MediaFile, Order, OrderItem, Product
+from .models import Cart, CartItem, Category, MediaFile, Order, OrderItem, Product
 
 
 User = get_user_model()
@@ -187,6 +187,89 @@ class StoreFlowTests(TestCase):
         )
         self.assertRedirects(response, self.product.get_absolute_url())
         self.assertFalse(CartItem.objects.filter(product=self.product).exists())
+
+    def _cart_item(self, quantity=1):
+        """Put one line in the signed-in shopper's cart and return it."""
+        cart, _ = Cart.objects.get_or_create(user=self.user)
+        return CartItem.objects.create(cart=cart, product=self.product, quantity=quantity)
+
+    def test_cart_quantity_steppers_change_the_stored_quantity(self):
+        self.login()
+        item = self._cart_item(quantity=1)
+        url = reverse("store:update_cart", args=[item.pk])
+
+        response = self.client.post(url, {"quantity": 2}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["cart_count"], 2)
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 2)
+
+        response = self.client.post(url, {"quantity": 1}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["cart_count"], 1)
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 1)
+
+    def test_cart_update_without_a_quantity_is_rejected_not_treated_as_remove(self):
+        """Regression: the AJAX stepper once posted no quantity at all.
+
+        Django read the missing value as 0, deleted the line and still replied
+        "ok", so clicking + made the row disappear instead of counting up.
+        """
+        self.login()
+        item = self._cart_item(quantity=3)
+        url = reverse("store:update_cart", args=[item.pk])
+
+        response = self.client.post(url, {}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+        self.assertTrue(CartItem.objects.filter(pk=item.pk).exists())
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 3)
+
+        response = self.client.post(url, {"quantity": ""}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(CartItem.objects.filter(pk=item.pk).exists())
+
+        response = self.client.post(url, {"quantity": "abc"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(CartItem.objects.filter(pk=item.pk).exists())
+
+    def test_cart_quantity_of_zero_still_removes_the_line(self):
+        self.login()
+        item = self._cart_item(quantity=1)
+        response = self.client.post(
+            reverse("store:update_cart", args=[item.pk]),
+            {"quantity": 0},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["cart_count"], 0)
+        self.assertFalse(CartItem.objects.filter(pk=item.pk).exists())
+
+    def test_cart_remove_returns_the_remaining_count_and_clears_the_line(self):
+        self.login()
+        keep = self._cart_item(quantity=2)
+        other = Product.objects.create(
+            name="Desk Fan",
+            description="A quiet desk fan.",
+            price=Decimal("10.00"),
+            category=self.category,
+            stock_quantity=5,
+            available=True,
+        )
+        drop = CartItem.objects.create(cart=keep.cart, product=other, quantity=1)
+
+        response = self.client.post(
+            reverse("store:remove_from_cart", args=[drop.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["cart_count"], 2)
+        self.assertFalse(CartItem.objects.filter(pk=drop.pk).exists())
+        self.assertTrue(CartItem.objects.filter(pk=keep.pk).exists())
 
     def test_order_history_is_private(self):
         self.login()

@@ -161,19 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Broken image safety net --------------------------------------------
     // Any storefront image that fails to load becomes a tidy placeholder
     // instead of a broken-image icon.
-    const swapToPlaceholder = (img) => {
-        const holder = document.createElement("div");
-        holder.className = "placeholder-image";
-        holder.innerHTML = '<i class="bi bi-image"></i><span>No image available</span>';
-        img.replaceWith(holder);
-    };
-    document.querySelectorAll("img[data-fallback]").forEach((img) => {
-        if (img.complete && img.naturalWidth === 0 && img.src) {
-            swapToPlaceholder(img);
-        } else {
-            img.addEventListener("error", () => swapToPlaceholder(img), { once: true });
-        }
-    });
+    bindImageFallbacks(document);
 
     // --- Submit feedback on key buttons (prevents double submits) -----------
     document.querySelectorAll("form").forEach((form) => {
@@ -200,60 +188,129 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 6500);
 });
 
-// Add-to-cart uses the same POST/CSRF protection, but updates the page in place.
+// Cart forms (add / update / remove) use the same POST/CSRF protection as a
+// normal submit, but with JavaScript we keep the shopper on the page and refresh
+// only the parts that change.
+const CART_FORM_SELECTOR =
+    'form[action*="/cart/add/"], form[action*="/cart/update/"], form[action*="/cart/remove/"]';
+
 document.addEventListener("submit", async (event) => {
-    const form = event.target.closest('form[action*="/cart/add/"], form[action*="/cart/update/"], form[action*="/cart/remove/"]');
+    const form = event.target.closest ? event.target.closest(CART_FORM_SELECTOR) : null;
     if (!form || event.submitter?.name === "buy_now") return;
+    // Ignore double clicks / double submits while a request is in flight.
+    if (form.dataset.submitting === "1") {
+        event.preventDefault();
+        return;
+    }
     event.preventDefault();
 
-    const button = event.submitter || form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
+    const submitter = event.submitter || form.querySelector('button[type="submit"]');
+
+    // Build the payload BEFORE the button is disabled: browsers leave a disabled
+    // submit button out of FormData. The quantity steppers carry the new amount
+    // on the button itself (name="quantity"), so disabling first silently sent a
+    // post without any quantity and the server treated it as "remove the line".
+    const payload = new FormData(form);
+    if (submitter && submitter.name) {
+        payload.set(submitter.name, submitter.value);
+    }
+
+    form.dataset.submitting = "1";
+    if (submitter) submitter.disabled = true;
     try {
         const response = await fetch(form.action, {
             method: "POST",
-            body: new FormData(form, event.submitter || undefined),
+            body: payload,
             headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
             credentials: "same-origin",
         });
-        const result = await response.json();
-        if (!response.ok || !result.ok) throw new Error(result.message || "Could not add this item to your cart.");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) {
+            throw new Error(result.message || "We could not update your cart. Please try again.");
+        }
 
         updateCartBadge(result.cart_count);
         if (form.action.includes("/cart/update/") || form.action.includes("/cart/remove/")) {
-            const response = await fetch(window.location.href, { credentials: "same-origin" });
-            const html = await response.text();
-            const nextDocument = new DOMParser().parseFromString(html, "text/html");
-            const currentSection = document.querySelector("main .section-block");
-            const nextSection = nextDocument.querySelector("main .section-block");
-            if (currentSection && nextSection) currentSection.innerHTML = nextSection.innerHTML;
-            const currentHero = document.querySelector(".page-hero-sub");
-            const nextHero = nextDocument.querySelector(".page-hero-sub");
-            if (currentHero && nextHero) currentHero.textContent = nextHero.textContent;
+            await refreshCartPanel();
         }
         showCartNotice(result.message, false);
     } catch (error) {
-        showCartNotice(error.message || "Unable to add this item. Please try again.", true);
+        showCartNotice(error.message || "We could not update your cart. Please try again.", true);
     } finally {
-        if (button) button.disabled = false;
+        form.dataset.submitting = "";
+        if (submitter) submitter.disabled = false;
     }
 });
 
+// Re-render the cart section (lines, totals and summary) from a fresh copy of
+// the page, without touching the header, the footer or the scroll position.
+async function refreshCartPanel() {
+    const response = await fetch(window.location.href, {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+    });
+    if (!response.ok) return;
+
+    const nextDocument = new DOMParser().parseFromString(await response.text(), "text/html");
+    const currentSection = document.querySelector("main .section-block");
+    const nextSection = nextDocument.querySelector("main .section-block");
+    if (currentSection && nextSection) {
+        currentSection.innerHTML = nextSection.innerHTML;
+        // Swapped-in markup has not been through the page load enhancers yet:
+        // without this the [data-reveal] wrappers stay at opacity 0 (invisible
+        // cart) and images lose their broken-image fallback.
+        currentSection.querySelectorAll("[data-reveal]").forEach((el) => el.classList.add("in"));
+        bindImageFallbacks(currentSection);
+    }
+
+    const currentHero = document.querySelector(".page-hero-sub");
+    const nextHero = nextDocument.querySelector(".page-hero-sub");
+    if (currentHero && nextHero) currentHero.textContent = nextHero.textContent;
+}
+
+function bindImageFallbacks(root) {
+    const swapToPlaceholder = (img) => {
+        const holder = document.createElement("div");
+        holder.className = "placeholder-image";
+        holder.innerHTML = '<i class="bi bi-image"></i><span>No image available</span>';
+        img.replaceWith(holder);
+    };
+    root.querySelectorAll("img[data-fallback]").forEach((img) => {
+        if (img.complete && img.naturalWidth === 0 && img.src) {
+            swapToPlaceholder(img);
+        } else {
+            img.addEventListener("error", () => swapToPlaceholder(img), { once: true });
+        }
+    });
+}
+
+// Keep every cart counter in the chrome in sync: the header badge and the
+// matching row inside the slide-out navigation drawer.
 function updateCartBadge(count) {
     const cartLink = document.querySelector(".header-cart");
-    if (!cartLink) return;
-    let badge = cartLink.querySelector(".cart-badge");
-    if (!count) {
-        badge?.remove();
-        cartLink.setAttribute("aria-label", "Cart");
-        return;
+    const drawerLink = document.querySelector('.drawer-link[href*="/cart/"]');
+    [
+        [cartLink, "cart-badge"],
+        [drawerLink, "drawer-badge"],
+    ].forEach(([container, badgeClass]) => {
+        if (!container) return;
+        const badge = container.querySelector(`.${badgeClass}`);
+        if (!count) {
+            badge?.remove();
+            return;
+        }
+        if (badge) {
+            badge.textContent = count;
+            return;
+        }
+        const next = document.createElement("span");
+        next.className = badgeClass;
+        next.textContent = count;
+        container.appendChild(next);
+    });
+    if (cartLink) {
+        cartLink.setAttribute("aria-label", count ? `Cart, ${count} items` : "Cart");
     }
-    if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "cart-badge";
-        cartLink.appendChild(badge);
-    }
-    badge.textContent = count;
-    cartLink.setAttribute("aria-label", `Cart, ${count} items`);
 }
 
 function showCartNotice(message, isError) {
