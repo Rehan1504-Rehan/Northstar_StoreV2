@@ -417,12 +417,21 @@ def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
         pk=item_id,
         cart__user=request.user,
     )
-    try:
-        quantity = int(request.POST.get("quantity", 0))
-    except (TypeError, ValueError):
-        quantity = 0
-
     wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    # A missing or unreadable quantity is a broken request, not a request to
+    # delete the line. Treating it as zero used to wipe cart rows whenever a
+    # client posted without the field (for example a submit button that was
+    # already disabled, so it never made it into the form data).
+    try:
+        quantity = int(str(request.POST.get("quantity", "")).strip())
+    except (TypeError, ValueError):
+        message = "We could not tell which quantity you wanted. Please try again."
+        if wants_json:
+            return JsonResponse({"ok": False, "message": message}, status=400)
+        messages.error(request, message)
+        return redirect("store:cart")
+
     if quantity <= 0:
         item.delete()
         message = f"{item.product.name} was removed from your cart."
