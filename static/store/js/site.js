@@ -11,6 +11,30 @@ document.addEventListener("DOMContentLoaded", () => {
         window.addEventListener("scroll", onScroll, { passive: true });
     }
 
+    // --- Desktop horizontal nav bar scroll ergonomics ---------------------
+    const headerNavList = document.querySelector(".header-nav-list");
+    if (headerNavList) {
+        headerNavList.addEventListener(
+            "wheel",
+            (event) => {
+                if (headerNavList.scrollWidth <= headerNavList.clientWidth) return;
+                if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                    event.preventDefault();
+                    headerNavList.scrollLeft += event.deltaY;
+                }
+            },
+            { passive: false }
+        );
+        const activeNavPill = headerNavList.querySelector(".nav-pill.active");
+        if (activeNavPill && headerNavList.scrollWidth > headerNavList.clientWidth) {
+            const listRect = headerNavList.getBoundingClientRect();
+            const pillRect = activeNavPill.getBoundingClientRect();
+            if (pillRect.right > listRect.right || pillRect.left < listRect.left) {
+                activeNavPill.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+        }
+    }
+
     // --- Left slide navigation drawer -------------------------------------
     const drawer = document.getElementById("navDrawer");
     const overlay = document.getElementById("navOverlay");
