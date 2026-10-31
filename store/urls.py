@@ -7,6 +7,7 @@ app_name = "store"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("smart-match/", views.smart_match, name="smart_match"),
     path("products/", views.product_list, name="product_list"),
     path("products/<slug:slug>/", views.product_detail, name="product_detail"),
     path("category/<slug:slug>/", views.category_products, name="category_products"),

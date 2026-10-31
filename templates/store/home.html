@@ -27,18 +27,12 @@
                     <div class="sv-hero-content">
                         <div class="sv-hero-text">
                             <span class="sv-hero-badge">⚡ Welcome to Northstar Store</span>
-                            <h1 class="sv-hero-title">
-                                {% if hero_is_tech %}
-                                <span class="sv-line1">Discover The</span>
-                                <span class="sv-line2">Future of <span class="sv-gradient-text">Tech</span></span>
-                                <span class="sv-line3">At Best Prices</span>
-                                {% else %}
-                                <span class="sv-line1">Discover Curated</span>
-                                <span class="sv-line2">Everyday <span class="sv-gradient-text">Essentials</span></span>
-                                <span class="sv-line3">At Best Prices</span>
-                                {% endif %}
+                            <h1 class="sv-hero-title" aria-label="Discover smarter picks for your everyday life.">
+                                <span class="sv-line1">Discover</span>
+                                <span class="sv-line2"><span class="sv-gradient-text">smarter picks</span></span>
+                                <span class="sv-line3">for your everyday life.</span>
                             </h1>
-                            <p class="sv-hero-desc">Discover hand-picked electronics, gaming gear and everyday essentials. Your next upgrade starts here with exclusive online deals!</p>
+                            <p class="sv-hero-desc">From smart home upgrades, workspace essentials, and audio gear to kitchenware, fashion, and footwear — explore quality-checked picks for every part of your day at honest prices.</p>
                             <div class="sv-hero-features">
                                 <div class="sv-hero-feature">
                                     <i class="fas fa-check-circle"></i>
@@ -60,6 +54,10 @@
                                 </a>
                                 <a href="{% url 'store:deals' %}" class="sv-btn sv-btn-outline sv-btn-lg sv-hero-btn">
                                     <span>Explore Deals</span>
+                                </a>
+                                <a href="{% url 'store:smart_match' %}" class="sv-btn sv-btn-smart sv-btn-lg sv-hero-btn">
+                                    <i class="fas fa-compass"></i>
+                                    <span>Find My Perfect Product</span>
                                 </a>
                             </div>
                             <div class="sv-hero-stats">
@@ -83,10 +81,20 @@
                                 {% with product=hero_product %}
                                 <a class="sv-hero-product-card sv-floating" href="{% if product %}{{ product.get_absolute_url }}{% else %}{% url 'store:product_list' %}{% endif %}">
                                     <div class="sv-hero-product-img">
-                                    {% if product and product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" fetchpriority="high">
+                                    {% if product and product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" fetchpriority="high" data-fallback>
                                     {% else %}<div class="sv-hero-placeholder"><i class="fas fa-headphones-alt"></i><span>Your next upgrade</span></div>{% endif %}
                                     </div>
                                     {% if product and product.has_discount %}<span class="sv-hero-discount-badge">-{{ product|discount_percent }}%</span>{% endif %}
+                                    {% if product %}
+                                    <div class="sv-hero-product-meta">
+                                        {% if product.category %}<span class="sv-hero-product-cat">{{ product.category.name }}</span>{% endif %}
+                                        <strong class="sv-hero-product-name">{{ product.name }}</strong>
+                                        <div class="sv-hero-product-price">
+                                            <span class="sv-hero-price-now">{{ product.get_price|inr }}</span>
+                                            {% if product.has_discount %}<span class="sv-hero-price-was">{{ product.price|inr }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </a>
                                 {% endwith %}
                                 <div class="sv-floating-element sv-float-1">
@@ -170,6 +178,26 @@
                         <h4>24/7 Support</h4>
                         <p>Dedicated support</p>
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Northstar Smart Match Spotlight -->
+    <section class="sv-smart-match-banner" id="smart-match-callout" aria-labelledby="smart-match-callout-title">
+        <div class="container">
+            <div class="sv-smart-match-card" data-sv-aos="fade-up">
+                <div class="sv-smart-match-copy">
+                    <span class="sv-smart-match-pill"><i class="bi bi-sliders2-vertical me-1"></i>Northstar Smart Match · Rule-Based Finder</span>
+                    <h2 id="smart-match-callout-title">Not sure what to pick? Answer 3 quick questions.</h2>
+                    <p>Tell us what you are looking for, your budget range, and how you want results sorted — our rule-based product matcher filters live store inventory and explains every match using verified catalog data.</p>
+                </div>
+                <div class="sv-smart-match-cta">
+                    <a href="{% url 'store:smart_match' %}" class="sv-btn sv-btn-primary sv-btn-lg">
+                        <i class="fas fa-compass"></i>
+                        <span>Find My Perfect Product</span>
+                        <i class="fas fa-arrow-right sv-btn-arrow"></i>
+                    </a>
                 </div>
             </div>
         </div>

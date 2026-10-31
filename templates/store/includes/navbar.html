@@ -69,6 +69,9 @@
                 <li><button class="nav-pill nav-pill-categories border-0" type="button" data-nav-open aria-controls="navDrawer" aria-expanded="false"><i class="bi bi-grid me-2"></i>All Categories<i class="bi bi-chevron-down ms-2"></i></button></li>
                 <li><a class="nav-pill{% if request.resolver_match.url_name == 'home' %} active{% endif %}" href="{% url 'store:home' %}">Home</a></li>
                 <li>
+                    <a class="nav-pill{% if request.resolver_match.url_name == 'smart_match' %} active{% endif %}" href="{% url 'store:smart_match' %}"><i class="bi bi-compass me-1"></i>Smart Match</a>
+                </li>
+                <li>
                     <a class="nav-pill{% if request.resolver_match.url_name == 'product_list' %} active{% endif %}" href="{% url 'store:product_list' %}">All Products</a>
                 </li>
                 {% for category in nav_categories %}
@@ -105,6 +108,12 @@
                 <a class="drawer-link{% if request.resolver_match.url_name == 'home' %} is-active{% endif %}" href="{% url 'store:home' %}">
                     <i class="bi bi-house-door" aria-hidden="true"></i>
                     <span>Home</span>
+                </a>
+            </li>
+            <li>
+                <a class="drawer-link{% if request.resolver_match.url_name == 'smart_match' %} is-active{% endif %}" href="{% url 'store:smart_match' %}">
+                    <i class="bi bi-compass" aria-hidden="true"></i>
+                    <span>Smart Match</span>
                 </a>
             </li>
             <li>

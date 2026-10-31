@@ -149,24 +149,171 @@ class CheckoutForm(forms.Form):
             attrs={
                 "class": "form-control",
                 "rows": 4,
-                "placeholder": "Street, city, state/province and postal code",
+                "placeholder": "House/flat no., street, area, city, state and PIN code",
             }
         ),
     )
     phone_number = forms.CharField(
         label="Phone number",
         max_length=30,
+        help_text="10-digit Indian mobile number (starting with 6–9). Optional +91, spaces or hyphens allowed.",
+        error_messages={
+            "required": "Enter your 10-digit Indian mobile number.",
+            "max_length": "Phone number is too long. Enter a 10-digit Indian mobile number (with optional +91).",
+        },
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
-                "placeholder": "+1 555 123 4567",
+                "type": "tel",
+                "inputmode": "tel",
+                "maxlength": "16",
+                "placeholder": "+91 98765 43210",
                 "autocomplete": "tel",
+                "pattern": r"^\s*(?:\+91[\s\-]?)?[6-9]\d{4}[\s\-]?\d{5}\s*$",
+                "title": "Enter a 10-digit Indian mobile number starting with 6, 7, 8, or 9 (optional +91)",
+                "aria-describedby": "phone-number-help",
             }
         ),
     )
 
     def clean_phone_number(self):
-        phone = self.cleaned_data["phone_number"].strip()
-        if not re.fullmatch(r"[+()\-\s\d.]{7,30}", phone):
-            raise forms.ValidationError("Enter a valid phone number.")
-        return phone
+        raw = (self.cleaned_data.get("phone_number") or "").strip()
+        if not raw:
+            raise forms.ValidationError("Enter your 10-digit Indian mobile number.")
+
+        # Reject letters or unsupported symbols (only digits, spaces, hyphens, and an optional leading '+').
+        if not re.fullmatch(r"\+?[\d\s\-]+", raw):
+            raise forms.ValidationError(
+                "Enter a valid Indian mobile number using digits only (optional +91, spaces, or hyphens)."
+            )
+
+        # Reject malformed separator usage such as leading/trailing hyphens or consecutive hyphens.
+        if (
+            raw.startswith("-")
+            or raw.endswith("-")
+            or "--" in raw
+            or "+-" in raw
+            or "-+" in raw
+        ):
+            raise forms.ValidationError(
+                "Enter a valid 10-digit Indian mobile number (e.g. 98765 43210 or +91 98765 43210)."
+            )
+
+        compact = re.sub(r"[\s\-]+", "", raw)
+        if compact.startswith("+"):
+            if not compact.startswith("+91"):
+                raise forms.ValidationError(
+                    "Only Indian mobile numbers (+91 country code) are supported."
+                )
+            if not re.match(r"^\+91(?:[\s\-]?\d)", raw):
+                raise forms.ValidationError(
+                    "Enter a valid +91 country code followed by a 10-digit mobile number."
+                )
+            national = compact[3:]
+        else:
+            national = compact
+
+        if not national.isdigit() or len(national) != 10:
+            raise forms.ValidationError(
+                "Enter a valid 10-digit Indian mobile number (with optional +91 country code)."
+            )
+
+        if national[0] not in {"6", "7", "8", "9"}:
+            raise forms.ValidationError(
+                "Indian mobile numbers must start with 6, 7, 8, or 9."
+            )
+
+        return f"+91{national}"
+
+
+class SmartMatchForm(forms.Form):
+    """Server-validated choices for the rule-based Northstar Smart Match finder."""
+
+    CATEGORY_CHOICES = (
+        ("audio", "Audio & Music"),
+        ("gaming", "Gaming"),
+        ("computers_work_study", "Computers, Work & Study"),
+        ("electronics_mobile", "Electronics & Mobile Accessories"),
+        ("home_kitchen_smart", "Home & Kitchen / Smart Home"),
+        ("fashion_footwear", "Fashion & Footwear"),
+        ("all", "Explore All Categories"),
+    )
+
+    BUDGET_CHOICES = (
+        ("under_1000", "Under ₹1,000"),
+        ("1000_3000", "₹1,000–₹3,000"),
+        ("3000_5000", "Above ₹3,000–₹5,000"),
+        ("above_5000", "Above ₹5,000"),
+        ("any", "No budget limit"),
+    )
+
+    SORT_CHOICES = (
+        ("price_asc", "Lowest price first"),
+        ("price_desc", "Highest price first"),
+        ("discount_desc", "Biggest discount first"),
+        ("newest", "Newest first"),
+    )
+
+    category = forms.ChoiceField(
+        label="What are you looking for?",
+        choices=CATEGORY_CHOICES,
+        error_messages={
+            "required": "Please select what you are looking for.",
+            "invalid_choice": "Please choose one of the available category options.",
+        },
+    )
+    budget = forms.ChoiceField(
+        label="What is your budget?",
+        choices=BUDGET_CHOICES,
+        error_messages={
+            "required": "Please select a budget range.",
+            "invalid_choice": "Please choose one of the available budget ranges.",
+        },
+    )
+    sort = forms.ChoiceField(
+        label="How would you like to sort the results?",
+        choices=SORT_CHOICES,
+        error_messages={
+            "required": "Please select how you would like to sort the results.",
+            "invalid_choice": "Please choose one of the available sorting options.",
+        },
+    )
+
+    _CATEGORY_ALIASES = {label.lower(): key for key, label in CATEGORY_CHOICES}
+    _BUDGET_ALIASES = {
+        **{label.lower(): key for key, label in BUDGET_CHOICES},
+        "1000-3000": "1000_3000",
+        "₹1,000-₹3,000": "1000_3000",
+        "above ₹3,000-₹5,000": "3000_5000",
+        "3000-5000": "3000_5000",
+        "no_limit": "any",
+        "all": "any",
+    }
+    _SORT_ALIASES = {
+        **{label.lower(): key for key, label in SORT_CHOICES},
+        "price_low": "price_asc",
+        "price_high": "price_desc",
+        "discount": "discount_desc",
+    }
+
+    def __init__(self, data=None, *args, **kwargs):
+        if data is not None:
+            normalized = data.copy()
+            raw_cat = (normalized.get("category") or normalized.get("interest") or "").strip()
+            if raw_cat and raw_cat.lower() in self._CATEGORY_ALIASES:
+                normalized["category"] = self._CATEGORY_ALIASES[raw_cat.lower()]
+            elif raw_cat and "category" not in normalized:
+                normalized["category"] = raw_cat
+
+            raw_budget = (normalized.get("budget") or "").strip()
+            if raw_budget and raw_budget.lower() in self._BUDGET_ALIASES:
+                normalized["budget"] = self._BUDGET_ALIASES[raw_budget.lower()]
+
+            raw_sort = (normalized.get("sort") or normalized.get("sort_by") or "").strip()
+            if raw_sort and raw_sort.lower() in self._SORT_ALIASES:
+                normalized["sort"] = self._SORT_ALIASES[raw_sort.lower()]
+            elif raw_sort and "sort" not in normalized:
+                normalized["sort"] = raw_sort
+            data = normalized
+        super().__init__(data=data, *args, **kwargs)
+
