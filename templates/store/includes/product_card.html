@@ -40,15 +40,11 @@
         </div>
         <div class="pc-actions">
             {% if product.is_in_stock %}
-                {% if user.is_authenticated %}
-                    <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="pc-add-form">
-                        {% csrf_token %}
-                        <input type="hidden" name="quantity" value="1">
-                        <button class="btn btn-accent pc-add" type="submit" aria-label="Add {{ product.name }} to cart"><i class="bi bi-cart-plus"></i><span>Add to Cart</span></button>
-                    </form>
-                {% else %}
-                    <a class="btn btn-accent pc-add" href="{% url 'store:login' %}?next={{ product.get_absolute_url|urlencode }}"><i class="bi bi-cart-plus"></i><span>Add to Cart</span></a>
-                {% endif %}
+                <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="pc-add-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="quantity" value="1">
+                    <button class="btn btn-accent pc-add" type="submit" aria-label="Add {{ product.name }} to cart"><i class="bi bi-cart-plus"></i><span>Add to Cart</span></button>
+                </form>
             {% endif %}
             <a class="btn btn-ghost pc-view" href="{{ product.get_absolute_url }}" aria-label="View details of {{ product.name }}" title="View details"><i class="bi bi-eye"></i></a>
         </div>

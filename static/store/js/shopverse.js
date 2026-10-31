@@ -138,15 +138,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
-    // 7. COUNTDOWN TIMERS with flip animation
+    // 7. COUNTDOWN TIMERS (driven by genuine offer deadlines)
     // =========================================================
+    function parseDeadlineMs(raw) {
+        if (!raw || typeof raw !== 'string') return NaN;
+        const parsed = Date.parse(raw.trim());
+        return Number.isFinite(parsed) ? parsed : NaN;
+    }
+
     function startCountdown() {
+        const timerEl = document.querySelector('.sv-countdown-timer');
+        if (!timerEl) return;
+
+        const deadlineMs = parseDeadlineMs(timerEl.getAttribute('data-countdown-deadline'));
+        if (Number.isNaN(deadlineMs)) {
+            timerEl.hidden = true;
+            return;
+        }
+
+        const labelEl = timerEl.querySelector('.sv-countdown-label');
+        const boxesEl = timerEl.querySelector('.sv-countdown-boxes');
         const hoursEl = document.getElementById('sv-countdown-hours');
         const minutesEl = document.getElementById('sv-countdown-minutes');
         const secondsEl = document.getElementById('sv-countdown-seconds');
         if (!hoursEl || !minutesEl || !secondsEl) return;
-
-        let hours = 8, minutes = 45, seconds = 30;
 
         const tickEl = (el) => {
             const box = el.closest('.sv-countdown-box');
@@ -157,54 +172,101 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        setInterval(() => {
-            seconds--;
-            if (seconds < 0) {
-                seconds = 59; minutes--;
-                if (minutes < 0) {
-                    minutes = 59; hours--;
-                    if (hours < 0) hours = 23;
-                    tickEl(hoursEl);
-                }
-                tickEl(minutesEl);
+        let intervalId = null;
+        const render = () => {
+            const remainingSeconds = Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000));
+            const totalHours = Math.floor(remainingSeconds / 3600);
+            const minutes = Math.floor((remainingSeconds % 3600) / 60);
+            const seconds = remainingSeconds % 60;
+
+            const nextHours = String(totalHours).padStart(2, '0');
+            const nextMinutes = String(minutes).padStart(2, '0');
+            const nextSeconds = String(seconds).padStart(2, '0');
+
+            if (hoursEl.textContent !== nextHours) tickEl(hoursEl);
+            if (minutesEl.textContent !== nextMinutes) tickEl(minutesEl);
+            if (secondsEl.textContent !== nextSeconds) tickEl(secondsEl);
+
+            hoursEl.textContent = nextHours;
+            minutesEl.textContent = nextMinutes;
+            secondsEl.textContent = nextSeconds;
+
+            if (remainingSeconds <= 0) {
+                timerEl.classList.add('sv-timer-ended');
+                timerEl.setAttribute('data-countdown-state', 'expired');
+                if (labelEl) labelEl.textContent = 'Offer ended';
+                if (boxesEl) boxesEl.hidden = true;
+                if (intervalId !== null) clearInterval(intervalId);
+                return false;
             }
-            tickEl(secondsEl);
-            hoursEl.textContent = String(hours).padStart(2, '0');
-            minutesEl.textContent = String(minutes).padStart(2, '0');
-            secondsEl.textContent = String(seconds).padStart(2, '0');
-        }, 1000);
+            timerEl.classList.remove('sv-timer-ended');
+            timerEl.setAttribute('data-countdown-state', 'active');
+            if (labelEl) labelEl.textContent = 'Ends in:';
+            if (boxesEl) boxesEl.hidden = false;
+            return true;
+        };
+
+        if (render()) {
+            intervalId = setInterval(render, 1000);
+        }
     }
     startCountdown();
 
     // =========================================================
-    // 8. OFFER TIMER
+    // 8. OFFER TIMER (driven by genuine offer deadlines)
     // =========================================================
     function startOfferTimer() {
+        const timerEl = document.querySelector('.sv-offer-timer');
+        if (!timerEl) return;
+
+        const deadlineMs = parseDeadlineMs(timerEl.getAttribute('data-offer-deadline'));
+        if (Number.isNaN(deadlineMs)) {
+            timerEl.hidden = true;
+            return;
+        }
+
+        const statusEl = timerEl.querySelector('.sv-offer-status');
+        const boxesEl = timerEl.querySelector('.sv-offer-timer-boxes');
         const daysEl = document.querySelector('.sv-offer-days');
         const hrsEl = document.querySelector('.sv-offer-hrs');
         const minsEl = document.querySelector('.sv-offer-mins');
         const secsEl = document.querySelector('.sv-offer-secs');
-        if (!daysEl) return;
+        if (!daysEl || !hrsEl || !minsEl || !secsEl) return;
 
-        let days = 15, hrs = 8, mins = 45, secs = 30;
+        let intervalId = null;
+        const render = () => {
+            const remainingSeconds = Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000));
+            const days = Math.floor(remainingSeconds / 86400);
+            const hrs = Math.floor((remainingSeconds % 86400) / 3600);
+            const mins = Math.floor((remainingSeconds % 3600) / 60);
+            const secs = remainingSeconds % 60;
 
-        setInterval(() => {
-            secs--;
-            if (secs < 0) {
-                secs = 59; mins--;
-                if (mins < 0) {
-                    mins = 59; hrs--;
-                    if (hrs < 0) {
-                        hrs = 23; days--;
-                        if (days < 0) days = 0;
-                    }
-                }
-            }
             daysEl.textContent = String(days).padStart(2, '0');
             hrsEl.textContent = String(hrs).padStart(2, '0');
             minsEl.textContent = String(mins).padStart(2, '0');
             secsEl.textContent = String(secs).padStart(2, '0');
-        }, 1000);
+
+            if (remainingSeconds <= 0) {
+                timerEl.classList.add('sv-timer-ended');
+                timerEl.setAttribute('data-countdown-state', 'expired');
+                if (statusEl) {
+                    statusEl.textContent = 'Offer ended';
+                    statusEl.hidden = false;
+                }
+                if (boxesEl) boxesEl.hidden = true;
+                if (intervalId !== null) clearInterval(intervalId);
+                return false;
+            }
+            timerEl.classList.remove('sv-timer-ended');
+            timerEl.setAttribute('data-countdown-state', 'active');
+            if (statusEl) statusEl.hidden = true;
+            if (boxesEl) boxesEl.hidden = false;
+            return true;
+        };
+
+        if (render()) {
+            intervalId = setInterval(render, 1000);
+        }
     }
     startOfferTimer();
 
