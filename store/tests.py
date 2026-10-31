@@ -1245,6 +1245,11 @@ class HomepageMessagingAndHeroTests(TestCase):
         response = self.client.get(reverse("store:home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Discover smarter picks for your everyday life.")
+        self.assertContains(
+            response,
+            '<p class="sv-hero-desc">Discover hand-picked essentials for your home, work, and everyday adventures—all in one place.</p>',
+            html=True,
+        )
         self.assertContains(response, "Find My Perfect Product")
         self.assertEqual(response.context["hero_product"], preferred_product)
         self.assertContains(
@@ -1255,6 +1260,44 @@ class HomepageMessagingAndHeroTests(TestCase):
         self.assertContains(response, "₹3,299")
         self.assertContains(response, "-18%")
         self.assertIn(other_product, list(response.context["featured_products"]))
+
+    def test_desktop_navbar_is_left_aligned_scrollable_and_retains_all_links(self):
+        from pathlib import Path
+        from django.conf import settings
+
+        css_path = Path(settings.BASE_DIR) / "static" / "store" / "css" / "site.css"
+        css_text = css_path.read_text(encoding="utf-8")
+        self.assertNotIn(".header-nav-list { justify-content: center; }", css_text)
+        self.assertIn(".header-nav-list { justify-content: flex-start; }", css_text)
+        self.assertIn("overflow-x: auto;", css_text)
+
+        Product.objects.create(
+            name="Studio Headphones",
+            description="Over-ear headphones",
+            price=Decimal("2499.00"),
+            discount_price=Decimal("1999.00"),
+            category=self.electronics,
+            available=True,
+            stock_quantity=5,
+        )
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        nav_start = html.index('<ul class="header-nav-list">')
+        nav_end = html.index("</ul>", nav_start)
+        nav_html = html[nav_start:nav_end]
+
+        idx_all_categories = nav_html.index("All Categories")
+        idx_home = nav_html.index(">Home<")
+        idx_smart_match = nav_html.index("Smart Match")
+        idx_all_products = nav_html.index(">All Products<")
+        idx_electronics = nav_html.index(">Electronics<")
+        idx_deals = nav_html.index(">Deals<")
+        self.assertLess(idx_all_categories, idx_home)
+        self.assertLess(idx_home, idx_smart_match)
+        self.assertLess(idx_smart_match, idx_all_products)
+        self.assertLess(idx_all_products, idx_electronics)
+        self.assertLess(idx_electronics, idx_deals)
 
 
 class CountdownTimerTests(TestCase):
