@@ -164,7 +164,7 @@ class StoreFlowTests(TestCase):
 
         response = self.client.post(
             reverse("store:checkout"),
-            {"shipping_address": "123 Main Street, Example City 12345", "phone_number": "+1 555 123 4567"},
+            {"shipping_address": "123 Main Street, Example City 12345", "phone_number": "+91 98765 43210"},
         )
         order = Order.objects.get(user=self.user)
         self.assertRedirects(response, order.get_absolute_url())
@@ -1217,8 +1217,44 @@ class HomepageMessagingAndHeroTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["hero_product"], planner)
         self.assertFalse(response.context["hero_is_tech"])
-        self.assertContains(response, "Everyday")
+        self.assertContains(response, "Discover smarter picks for your everyday life.")
+        self.assertContains(response, "for your everyday life.")
         self.assertContains(response, f'class="sv-hero-product-card sv-floating" href="{planner.get_absolute_url()}"')
+
+    def test_hero_displays_exact_everyday_life_headline_and_preferred_product(self):
+        audio = Category.objects.create(name="Audio", slug="audio")
+        other_product = Product.objects.create(
+            name="Generic Cable",
+            slug="generic-cable",
+            description="Basic cable",
+            price=Decimal("299.00"),
+            category=self.electronics,
+            available=True,
+            stock_quantity=8,
+        )
+        preferred_product = Product.objects.create(
+            name="PulseBuds 2 Wireless Earbuds",
+            slug="pulsebuds-2-wireless-earbuds",
+            description="Everyday wireless earbuds",
+            price=Decimal("3999.00"),
+            discount_price=Decimal("3299.00"),
+            category=audio,
+            available=True,
+            stock_quantity=6,
+        )
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Discover smarter picks for your everyday life.")
+        self.assertContains(response, "Find My Perfect Product")
+        self.assertEqual(response.context["hero_product"], preferred_product)
+        self.assertContains(
+            response,
+            f'class="sv-hero-product-card sv-floating" href="{preferred_product.get_absolute_url()}"',
+        )
+        self.assertContains(response, "PulseBuds 2 Wireless Earbuds")
+        self.assertContains(response, "₹3,299")
+        self.assertContains(response, "-18%")
+        self.assertIn(other_product, list(response.context["featured_products"]))
 
 
 class CountdownTimerTests(TestCase):
@@ -1479,4 +1515,297 @@ class TemplateCommentLeakTests(TestCase):
                 self.assertNotContains(response, "Overlay dialogs (Bootstrap modals) must be rendered at body level")
                 self.assertNotContains(response, "ancestor can re-anchor the fixed-position Bootstrap modal")
                 self.assertNotContains(response, "a button may not be nested in the card-wide link")
+
+
+class CheckoutPhoneValidationTests(TestCase):
+    """Verify Feature 2: Indian mobile number validation and normalization on checkout."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="phone-tester",
+            email="phone@example.com",
+            password="StrongPassword123!",
+        )
+        self.category = Category.objects.create(name="Electronics")
+        self.product = Product.objects.create(
+            name="PowerVolt 25W GaN Charger",
+            description="Compact fast charger",
+            price=Decimal("1499.00"),
+            discount_price=Decimal("1199.00"),
+            category=self.category,
+            available=True,
+            stock_quantity=5,
+        )
+
+    def test_valid_ten_digit_and_formatted_indian_numbers_normalize_cleanly(self):
+        from .forms import CheckoutForm
+
+        valid_cases = [
+            ("9876543210", "+919876543210"),
+            ("8765432109", "+918765432109"),
+            ("7654321098", "+917654321098"),
+            ("6543210987", "+916543210987"),
+            ("+91 98765 43210", "+919876543210"),
+            ("+91-98765-43210", "+919876543210"),
+            ("+919876543210", "+919876543210"),
+            ("98765 43210", "+919876543210"),
+            ("98765-43210", "+919876543210"),
+        ]
+        for raw_phone, expected_normalized in valid_cases:
+            with self.subTest(raw_phone=raw_phone):
+                form = CheckoutForm(
+                    data={
+                        "shipping_address": "42 MG Road, Vadodara, Gujarat 390001",
+                        "phone_number": raw_phone,
+                    }
+                )
+                self.assertTrue(form.is_valid(), f"Expected {raw_phone!r} to be valid: {form.errors}")
+                self.assertEqual(form.cleaned_data["phone_number"], expected_normalized)
+
+    def test_invalid_overlong_empty_and_wrong_country_code_numbers_are_rejected(self):
+        from .forms import CheckoutForm
+
+        invalid_cases = [
+            "",
+            "   ",
+            "987654321",          # 9 digits (too short)
+            "98765432101",        # 11 digits (too long)
+            "987654321098765432", # overlong
+            "+91 987654321",      # 9 digits after +91
+            "+91 98765432101",    # 11 digits after +91
+            "5876543210",         # invalid starting digit 5
+            "4876543210",         # invalid starting digit 4
+            "1234567890",         # invalid starting digit 1
+            "0987654321",         # invalid starting digit 0
+            "+91 58765 43210",    # invalid starting digit after +91
+            "+1 555 123 4567",    # US country code
+            "+44 98765 43210",    # UK country code
+            "+92 98765 43210",    # wrong country code
+            "919876543210",       # 12 digits without '+'
+            "98765abcde",         # letters
+            "(987) 654-3210",     # unsupported parentheses
+            "987.654.3210",       # unsupported dots
+            "+91--9876543210",    # consecutive hyphens
+            "-9876543210",        # leading hyphen
+            "9876543210-",        # trailing hyphen
+        ]
+        for raw_phone in invalid_cases:
+            with self.subTest(raw_phone=raw_phone):
+                form = CheckoutForm(
+                    data={
+                        "shipping_address": "42 MG Road, Vadodara, Gujarat 390001",
+                        "phone_number": raw_phone,
+                    }
+                )
+                self.assertFalse(form.is_valid(), f"Expected {raw_phone!r} to be rejected")
+                self.assertIn("phone_number", form.errors)
+
+    def test_invalid_phone_submission_does_not_create_order_reduce_stock_or_clear_cart(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("store:add_to_cart", args=[self.product.pk]),
+            {"quantity": 2},
+        )
+        response = self.client.post(
+            reverse("store:checkout"),
+            {
+                "shipping_address": "42 MG Road, Vadodara, Gujarat 390001",
+                "phone_number": "12345",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a valid 10-digit Indian mobile number")
+        self.assertEqual(Order.objects.count(), 0)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 5)
+        self.assertEqual(CartItem.objects.filter(cart__user=self.user).count(), 1)
+        self.assertEqual(CartItem.objects.get(cart__user=self.user).quantity, 2)
+
+
+class SmartMatchTests(TestCase):
+    """Verify Feature 3: Northstar Smart Match rule-based recommendations."""
+
+    def setUp(self):
+        self.audio = Category.objects.create(name="Audio", slug="audio")
+        self.gaming = Category.objects.create(name="Gaming", slug="gaming")
+        self.computers = Category.objects.create(name="Computers & Laptops", slug="computers-laptops")
+        self.stationery = Category.objects.create(name="Stationery & Office", slug="stationery-office")
+        self.electronics = Category.objects.create(name="Electronics", slug="electronics")
+        self.mobile_acc = Category.objects.create(name="Mobile Accessories", slug="mobile-accessories")
+        self.home_kitchen = Category.objects.create(name="Home & Kitchen", slug="home-kitchen")
+        self.smart_home = Category.objects.create(name="Smart Home", slug="smart-home")
+        self.fashion = Category.objects.create(name="Fashion", slug="fashion")
+        self.footwear = Category.objects.create(name="Footwear", slug="footwear")
+
+        # Products testing exact decimal budget boundaries and discount selling price
+        self.p_under_1000 = Product.objects.create(
+            name="Braided Charging Cable",
+            description="Fast charging cable",
+            price=Decimal("1299.00"),
+            discount_price=Decimal("999.99"),  # selling price < 1000 even though list price > 1000
+            category=self.mobile_acc,
+            available=True,
+            stock_quantity=8,
+        )
+        self.p_exact_1000 = Product.objects.create(
+            name="Compact Desk Mouse",
+            description="Wireless office mouse",
+            price=Decimal("1000.00"),
+            category=self.computers,
+            available=True,
+            stock_quantity=5,
+        )
+        self.p_exact_3000 = Product.objects.create(
+            name="Studio Over-Ear Headphones",
+            description="Wired studio headphones",
+            price=Decimal("3500.00"),
+            discount_price=Decimal("3000.00"),
+            category=self.audio,
+            available=True,
+            stock_quantity=4,
+        )
+        self.p_just_above_3000 = Product.objects.create(
+            name="PulseBuds Wireless Earbuds",
+            description="Everyday earbuds",
+            price=Decimal("3999.00"),
+            discount_price=Decimal("3000.01"),
+            category=self.audio,
+            available=True,
+            stock_quantity=6,
+        )
+        self.p_exact_5000 = Product.objects.create(
+            name="Video Doorbell Pro",
+            description="Smart Wi-Fi video doorbell",
+            price=Decimal("5499.00"),
+            discount_price=Decimal("5000.00"),
+            category=self.smart_home,
+            available=True,
+            stock_quantity=3,
+        )
+        self.p_above_5000 = Product.objects.create(
+            name="Vertex 15 Laptop",
+            description="15-inch productivity laptop",
+            price=Decimal("59999.00"),
+            discount_price=Decimal("54999.00"),
+            category=self.computers,
+            available=True,
+            stock_quantity=2,
+        )
+        self.p_sold_out = Product.objects.create(
+            name="Sold Out Audio Speaker",
+            description="Unavailable speaker",
+            price=Decimal("1999.00"),
+            category=self.audio,
+            available=True,
+            stock_quantity=0,
+        )
+
+    def test_smart_match_page_renders_three_questions_and_accurate_rule_based_copy(self):
+        response = self.client.get(reverse("store:smart_match"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Northstar Smart Match")
+        self.assertContains(response, "What are you looking for?")
+        self.assertContains(response, "What is your budget?")
+        self.assertContains(response, "How would you like to sort the results?")
+        self.assertContains(response, "Audio &amp; Music")
+        self.assertContains(response, "Computers, Work &amp; Study")
+        self.assertContains(response, "Home &amp; Kitchen / Smart Home")
+        self.assertContains(response, "Under ₹1,000")
+        self.assertContains(response, "₹1,000–₹3,000")
+        self.assertContains(response, "Above ₹3,000–₹5,000")
+        self.assertContains(response, "Above ₹5,000")
+        self.assertContains(response, "No budget limit")
+        self.assertNotContains(response, "AI-powered")
+        self.assertNotContains(response, "machine learning")
+
+    def test_budget_boundaries_use_selling_price_and_do_not_overlap(self):
+        # 1. Under ₹1,000 (< 1000): includes 999.99 (discounted from 1299), excludes 1000.00
+        res_under = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "all", "budget": "under_1000", "sort": "price_asc"},
+        )
+        products_under = [item["product"] for item in res_under.context["recommendations"]]
+        self.assertIn(self.p_under_1000, products_under)
+        self.assertNotIn(self.p_exact_1000, products_under)
+
+        # 2. ₹1,000–₹3,000 (>= 1000 and <= 3000): includes 1000.00 and 3000.00, excludes 999.99 and 3000.01
+        res_mid = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "all", "budget": "1000_3000", "sort": "price_asc"},
+        )
+        products_mid = [item["product"] for item in res_mid.context["recommendations"]]
+        self.assertIn(self.p_exact_1000, products_mid)
+        self.assertIn(self.p_exact_3000, products_mid)
+        self.assertNotIn(self.p_under_1000, products_mid)
+        self.assertNotIn(self.p_just_above_3000, products_mid)
+        self.assertNotIn(self.p_sold_out, products_mid)
+
+        # 3. Above ₹3,000–₹5,000 (> 3000 and <= 5000): includes 3000.01 and 5000.00, excludes 3000.00 and 54999
+        res_upper = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "all", "budget": "3000_5000", "sort": "price_asc"},
+        )
+        products_upper = [item["product"] for item in res_upper.context["recommendations"]]
+        self.assertIn(self.p_just_above_3000, products_upper)
+        self.assertIn(self.p_exact_5000, products_upper)
+        self.assertNotIn(self.p_exact_3000, products_upper)
+        self.assertNotIn(self.p_above_5000, products_upper)
+
+        # 4. Above ₹5,000 (> 5000): includes 54999.00, excludes 5000.00
+        res_high = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "all", "budget": "above_5000", "sort": "price_asc"},
+        )
+        products_high = [item["product"] for item in res_high.context["recommendations"]]
+        self.assertEqual(products_high, [self.p_above_5000])
+
+    def test_sorting_limits_to_three_and_builds_accurate_reasons(self):
+        # Add two more audio items so Audio has 4 in-stock products
+        a3 = Product.objects.create(
+            name="PocketBeat Speaker",
+            description="Compact speaker",
+            price=Decimal("2000.00"),
+            discount_price=Decimal("1500.00"),  # 25% off
+            category=self.audio,
+            available=True,
+            stock_quantity=10,
+        )
+        a4 = Product.objects.create(
+            name="Studio XLR Mic",
+            description="Condenser mic",
+            price=Decimal("4500.00"),
+            category=self.audio,
+            available=True,
+            stock_quantity=3,
+        )
+        res = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "audio", "budget": "any", "sort": "discount_desc"},
+        )
+        recs = res.context["recommendations"]
+        self.assertEqual(len(recs), 3)
+        self.assertEqual(recs[0]["product"], a3)  # 25% discount is highest in Audio
+        self.assertIn("Audio", recs[0]["reason"])
+        self.assertIn("25% off", recs[0]["reason"])
+        self.assertContains(res, a3.get_absolute_url())
+        self.assertContains(res, reverse("store:add_to_cart", args=[a3.id]))
+        self.assertNotIn(a4, [r["product"] for r in recs])
+
+    def test_no_match_and_invalid_choice_states_handled_gracefully(self):
+        no_match = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "gaming", "budget": "above_5000", "sort": "newest"},
+        )
+        self.assertEqual(no_match.status_code, 200)
+        self.assertEqual(no_match.context["recommendations"], [])
+        self.assertContains(no_match, "No in-stock products match that exact combination")
+
+        invalid = self.client.get(
+            reverse("store:smart_match"),
+            {"category": "invalid_cat", "budget": "invalid_budget", "sort": "invalid_sort"},
+        )
+        self.assertEqual(invalid.status_code, 200)
+        self.assertFalse(invalid.context["form"].is_valid())
+        self.assertContains(invalid, "Please choose one of the available category options.")
+
 

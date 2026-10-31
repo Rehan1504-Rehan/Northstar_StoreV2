@@ -1,0 +1,278 @@
+{% extends 'store/base.html' %}
+{% load store_extras %}
+{% block title %}Northstar Smart Match — Find Your Perfect Product{% endblock %}
+{% block content %}
+<section class="page-hero sm-hero">
+    <div class="container" data-reveal>
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'store:home' %}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Northstar Smart Match</li>
+            </ol>
+        </nav>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <span class="sm-badge"><i class="bi bi-sliders2-vertical me-1"></i>Rule-Based Smart Recommendation</span>
+                <h1 class="page-hero-title mt-2">Northstar Smart Match</h1>
+                <p class="page-hero-sub mb-0">Answer three quick questions and our rule-based product matcher will filter live store inventory by category, exact selling-price budget, and sorting priority.</p>
+            </div>
+            <div class="sm-hero-actions">
+                <a href="{% url 'store:product_list' %}" class="btn btn-ghost-dark rounded-pill px-4"><i class="bi bi-grid me-2"></i>Browse Full Catalog</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="container section-block pt-4">
+    {% if form.errors %}
+        <div class="alert alert-danger py-3 px-4 mb-4 rounded-4 shadow-sm" role="alert">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                <div>
+                    <strong>Please review your selections:</strong>
+                    <ul class="mb-0 mt-1 ps-3">
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <form method="get" action="{% url 'store:smart_match' %}#smart-match-results" class="sm-wizard-card panel mb-5" novalidate data-reveal>
+        <!-- Question 1: Category -->
+        <fieldset class="sm-step">
+            <legend class="sm-step-legend">
+                <span class="sm-step-num">1</span>
+                <div>
+                    <span class="sm-step-title">What are you looking for?</span>
+                    <span class="sm-step-sub">Choose a product area or explore the entire store catalog.</span>
+                </div>
+            </legend>
+            <div class="sm-options-grid sm-options-category" role="radiogroup" aria-label="What are you looking for?">
+                {% for opt in category_options %}
+                    <label class="sm-option-card{% if selected_choices.category == opt.key %} is-selected{% endif %}">
+                        <input
+                            type="radio"
+                            name="category"
+                            value="{{ opt.key }}"
+                            class="sm-option-input"
+                            {% if selected_choices.category == opt.key %}checked{% endif %}
+                            required
+                        >
+                        <span class="sm-option-icon"><i class="bi {{ opt.icon }}" aria-hidden="true"></i></span>
+                        <span class="sm-option-body">
+                            <strong class="sm-option-label">{{ opt.label }}</strong>
+                            <small class="sm-option-hint">{{ opt.hint }}</small>
+                        </span>
+                        <span class="sm-option-check" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                    </label>
+                {% endfor %}
+            </div>
+            {% for error in form.category.errors %}<div class="field-error mt-2" role="alert">{{ error }}</div>{% endfor %}
+        </fieldset>
+
+        <hr class="sm-divider">
+
+        <!-- Question 2: Budget -->
+        <fieldset class="sm-step">
+            <legend class="sm-step-legend">
+                <span class="sm-step-num">2</span>
+                <div>
+                    <span class="sm-step-title">What is your budget?</span>
+                    <span class="sm-step-sub">Filtered by actual selling price (discount price when on sale, otherwise regular price).</span>
+                </div>
+            </legend>
+            <div class="sm-options-grid sm-options-budget" role="radiogroup" aria-label="What is your budget?">
+                {% for opt in budget_options %}
+                    <label class="sm-option-card{% if selected_choices.budget == opt.key %} is-selected{% endif %}">
+                        <input
+                            type="radio"
+                            name="budget"
+                            value="{{ opt.key }}"
+                            class="sm-option-input"
+                            {% if selected_choices.budget == opt.key %}checked{% endif %}
+                            required
+                        >
+                        <span class="sm-option-icon"><i class="bi {{ opt.icon }}" aria-hidden="true"></i></span>
+                        <span class="sm-option-body">
+                            <strong class="sm-option-label">{{ opt.label }}</strong>
+                            <small class="sm-option-hint">{{ opt.range_note }}</small>
+                        </span>
+                        <span class="sm-option-check" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                    </label>
+                {% endfor %}
+            </div>
+            {% for error in form.budget.errors %}<div class="field-error mt-2" role="alert">{{ error }}</div>{% endfor %}
+        </fieldset>
+
+        <hr class="sm-divider">
+
+        <!-- Question 3: Sort -->
+        <fieldset class="sm-step">
+            <legend class="sm-step-legend">
+                <span class="sm-step-num">3</span>
+                <div>
+                    <span class="sm-step-title">How would you like to sort the results?</span>
+                    <span class="sm-step-sub">We rank matching in-stock items and pick the top 3 for you.</span>
+                </div>
+            </legend>
+            <div class="sm-options-grid sm-options-sort" role="radiogroup" aria-label="How would you like to sort the results?">
+                {% for opt in sort_options %}
+                    <label class="sm-option-card{% if selected_choices.sort == opt.key %} is-selected{% endif %}">
+                        <input
+                            type="radio"
+                            name="sort"
+                            value="{{ opt.key }}"
+                            class="sm-option-input"
+                            {% if selected_choices.sort == opt.key %}checked{% endif %}
+                            required
+                        >
+                        <span class="sm-option-icon"><i class="bi {{ opt.icon }}" aria-hidden="true"></i></span>
+                        <span class="sm-option-body">
+                            <strong class="sm-option-label">{{ opt.label }}</strong>
+                            <small class="sm-option-hint">{{ opt.hint }}</small>
+                        </span>
+                        <span class="sm-option-check" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                    </label>
+                {% endfor %}
+            </div>
+            {% for error in form.sort.errors %}<div class="field-error mt-2" role="alert">{{ error }}</div>{% endfor %}
+        </fieldset>
+
+        <div class="sm-submit-bar mt-4 pt-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <p class="text-muted small mb-0"><i class="bi bi-shield-check me-1 text-primary"></i>100% transparent, rule-based matching using live stock and verified catalog prices.</p>
+            <div class="d-flex flex-wrap gap-2">
+                {% if has_submission %}
+                    <a href="{% url 'store:smart_match' %}" class="btn btn-ghost-dark rounded-pill px-4">Reset Choices</a>
+                {% endif %}
+                <button type="submit" class="btn btn-accent btn-lg rounded-pill px-4">
+                    <i class="bi bi-compass me-2"></i>Show My Smart Matches
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Results Section -->
+    <div id="smart-match-results" aria-live="polite">
+        {% if catalog_empty %}
+            <div class="panel text-center py-5 px-4" data-reveal>
+                <div class="sm-empty-icon mx-auto mb-3"><i class="bi bi-box-seam"></i></div>
+                <h2 class="h4 fw-bold">Catalog is currently empty</h2>
+                <p class="text-muted mx-auto mb-4" style="max-width: 520px;">There are no in-stock products in the store right now. Please check back soon or add products in Store Admin to try Northstar Smart Match.</p>
+                <a href="{% url 'store:home' %}" class="btn btn-accent rounded-pill px-4">Back to Homepage</a>
+            </div>
+        {% elif has_submission and form.is_valid %}
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4" data-reveal>
+                <div>
+                    <span class="eyebrow text-uppercase fw-semibold small">Smart Match Results</span>
+                    <h2 class="section-title mb-1">
+                        {% if recommendations %}
+                            Top {{ recommendations|length }} Match{{ recommendations|length|pluralize:"es" }} for You
+                        {% else %}
+                            No Exact Matches Found
+                        {% endif %}
+                    </h2>
+                    {% if selected_summary %}
+                        <div class="sm-filter-chips mt-2">
+                            <span class="sm-filter-chip"><i class="bi bi-tag me-1"></i>{{ selected_summary.category_label }}</span>
+                            <span class="sm-filter-chip"><i class="bi bi-currency-rupee me-1"></i>{{ selected_summary.budget_label }}</span>
+                            <span class="sm-filter-chip"><i class="bi bi-arrow-down-up me-1"></i>{{ selected_summary.sort_label }}</span>
+                            {% if total_matches > 0 %}
+                                <span class="sm-filter-count text-muted small ms-1">({{ total_matches }} matching in-stock item{{ total_matches|pluralize }} found)</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if recommendations %}
+                <div class="row g-4">
+                    {% for item in recommendations %}
+                        {% with product=item.product %}
+                        <div class="col-md-6 col-lg-4" data-reveal>
+                            <article class="sm-result-card h-100 d-flex flex-column">
+                                <div class="sm-result-head">
+                                    <span class="sm-rank-badge"><i class="bi bi-award-fill me-1"></i>Match #{{ item.rank }}</span>
+                                    {% with off=product|discount_percent %}
+                                        {% if product.has_discount and off %}
+                                            <span class="pc-badge pc-badge-sale position-static">{{ off }}% OFF</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </div>
+
+                                <a href="{{ product.get_absolute_url }}" class="sm-result-media" aria-label="View {{ product.name }}">
+                                    {% if product.image %}
+                                        <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy" decoding="async" data-fallback>
+                                    {% else %}
+                                        <div class="placeholder-image"><i class="bi bi-image"></i><span>No image available</span></div>
+                                    {% endif %}
+                                </a>
+
+                                <div class="sm-result-body d-flex flex-column flex-grow-1">
+                                    <div class="pc-cat">{% if product.category %}{{ product.category.name }}{% else %}Catalog{% endif %}</div>
+                                    <h3 class="sm-result-title">
+                                        <a href="{{ product.get_absolute_url }}">{{ product.name }}</a>
+                                    </h3>
+
+                                    <div class="sm-result-price mb-2">
+                                        <span class="pc-price-now">{{ product.get_price|inr }}</span>
+                                        {% if product.has_discount %}
+                                            <span class="pc-price-was">{{ product.price|inr }}</span>
+                                            <span class="sm-save-pill">Save {{ product|savings_amount|inr }}</span>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="sm-match-reason mb-3">
+                                        <div class="sm-reason-label"><i class="bi bi-check2-circle me-1"></i>Why this matches</div>
+                                        <p class="mb-0">{{ item.reason }}</p>
+                                    </div>
+
+                                    <div class="sm-result-actions mt-auto pt-2 d-flex flex-wrap gap-2">
+                                        <a href="{{ product.get_absolute_url }}" class="btn btn-ghost-dark rounded-pill flex-grow-1">
+                                            <i class="bi bi-eye me-1"></i>View Product
+                                        </a>
+                                        <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="flex-grow-1">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="quantity" value="1">
+                                            <button type="submit" class="btn btn-accent rounded-pill w-100" aria-label="Add {{ product.name }} to cart">
+                                                <i class="bi bi-cart-plus me-1"></i>Add to Cart
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="panel text-center py-5 px-4" data-reveal>
+                    <div class="sm-empty-icon mx-auto mb-3"><i class="bi bi-search"></i></div>
+                    <h3 class="h4 fw-bold">No in-stock products match that exact combination</h3>
+                    <p class="text-muted mx-auto mb-4" style="max-width: 560px;">
+                        We couldn't find any available products in <strong>{{ selected_summary.category_label }}</strong> with a selling price of <strong>{{ selected_summary.budget_label }}</strong>. Try widening your budget or exploring all categories.
+                    </p>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                        <a href="{% url 'store:smart_match' %}?category={{ selected_choices.category }}&amp;budget=any&amp;sort={{ selected_choices.sort }}#smart-match-results" class="btn btn-accent rounded-pill px-4">
+                            <i class="bi bi-infinity me-1"></i>Try With No Budget Limit
+                        </a>
+                        <a href="{% url 'store:smart_match' %}?category=all&amp;budget={{ selected_choices.budget }}&amp;sort={{ selected_choices.sort }}#smart-match-results" class="btn btn-ghost-dark rounded-pill px-4">
+                            <i class="bi bi-grid me-1"></i>Try Across All Categories
+                        </a>
+                        <a href="{% url 'store:product_list' %}" class="btn btn-ghost-dark rounded-pill px-4">
+                            Browse All Products
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

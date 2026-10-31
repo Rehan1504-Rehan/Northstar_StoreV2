@@ -26,10 +26,10 @@ from django.utils.http import http_date, url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.static import serve as static_serve
 
-from .forms import CheckoutForm, LoginForm, ProfileForm, RegistrationForm
+from .forms import CheckoutForm, LoginForm, ProfileForm, RegistrationForm, SmartMatchForm
 from .models import Cart, CartItem, Category, MediaFile, Order, OrderItem, Product
 from .storage import normalize_name
-from .templatetags.store_extras import discount_percent
+from .templatetags.store_extras import discount_percent, inr, savings_amount
 
 
 class OutOfStockError(Exception):
@@ -303,15 +303,39 @@ def _is_tech_product(product: Product) -> bool:
     return any(word in full_text for word in _TECH_PRODUCT_KEYWORDS)
 
 
-def _select_hero_product(in_stock_products: list[Product]) -> Product | None:
-    """Pick a hero product that matches the homepage's tech positioning.
+_PREFERRED_HERO_SLUGS = (
+    "pulsebuds-2-wireless-earbuds",
+    "foldable-led-study-lamp",
+    "10000mah-slim-power-bank",
+    "soundwave-over-ear-headphones",
+    "powervolt-25w-gan-charger",
+    "slim-casual-backpack",
+    "minimal-chrono-watch",
+    "insulated-steel-bottle-750ml",
+    "aurora-led-strip-10m",
+)
 
-    Prefers an in-stock electronics, audio, or gaming product with a valid
-    image so a newly added stationery or fashion item (such as a Weekly
-    Planner) does not replace the tech hero visual.
+
+def _select_hero_product(in_stock_products: list[Product]) -> Product | None:
+    """Pick an in-stock hero product that fits the everyday-life hero theme.
+
+    Checks a prioritized list of flagship everyday products first (such as
+    PulseBuds 2 Wireless Earbuds or Foldable LED Study Lamp), then falls back
+    gracefully to any available in-stock product with an image, and finally to
+    any available in-stock product so no environment ever depends on a single
+    database row.
     """
     if not in_stock_products:
         return None
+    by_slug = {p.slug: p for p in in_stock_products}
+    for slug in _PREFERRED_HERO_SLUGS:
+        candidate = by_slug.get(slug)
+        if candidate is not None and bool(candidate.image):
+            return candidate
+    for slug in _PREFERRED_HERO_SLUGS:
+        candidate = by_slug.get(slug)
+        if candidate is not None:
+            return candidate
     tech_with_image = [
         p for p in in_stock_products if _is_tech_product(p) and bool(p.image)
     ]
@@ -441,6 +465,338 @@ def home(request: HttpRequest) -> HttpResponse:
             "max_discount": max_discount,
             "flash_deal_timer": flash_deal_timer,
             "special_offer_timer": special_offer_timer,
+        },
+    )
+
+
+SMART_MATCH_CATEGORY_OPTIONS = (
+    {
+        "key": "audio",
+        "label": "Audio & Music",
+        "icon": "bi-headphones",
+        "hint": "Headphones, earbuds, speakers & mics",
+        "keywords": ("audio", "music", "sound", "headphone", "earphone", "earbud", "speaker"),
+    },
+    {
+        "key": "gaming",
+        "label": "Gaming",
+        "icon": "bi-controller",
+        "hint": "Controllers, gaming mice, keyboards & headsets",
+        "keywords": ("gaming", "game", "console", "esport"),
+    },
+    {
+        "key": "computers_work_study",
+        "label": "Computers, Work & Study",
+        "icon": "bi-laptop",
+        "hint": "Laptops, keyboards, USB hubs, planners & office gear",
+        "keywords": (
+            "computer",
+            "laptop",
+            "stationery",
+            "office",
+            "work",
+            "study",
+            "desk",
+            "pc",
+            "peripheral",
+            "book",
+        ),
+    },
+    {
+        "key": "electronics_mobile",
+        "label": "Electronics & Mobile Accessories",
+        "icon": "bi-phone",
+        "hint": "Smartphones, tablets, chargers, power banks & cables",
+        "keywords": (
+            "electronic",
+            "mobile",
+            "phone",
+            "accessor",
+            "gadget",
+            "tech",
+            "tablet",
+            "camera",
+            "wearable",
+        ),
+    },
+    {
+        "key": "home_kitchen_smart",
+        "label": "Home & Kitchen / Smart Home",
+        "icon": "bi-house-heart",
+        "hint": "Smart lighting, Wi-Fi cameras, cookware & storage",
+        "keywords": (
+            "home",
+            "kitchen",
+            "smart-home",
+            "smart home",
+            "appliance",
+            "living",
+            "lighting",
+            "decor",
+            "cookware",
+        ),
+    },
+    {
+        "key": "fashion_footwear",
+        "label": "Fashion & Footwear",
+        "icon": "bi-bag-heart",
+        "hint": "Sneakers, sandals, backpacks, watches & apparel",
+        "keywords": (
+            "fashion",
+            "footwear",
+            "shoe",
+            "sneaker",
+            "sandal",
+            "apparel",
+            "cloth",
+            "wear",
+            "bag",
+        ),
+    },
+    {
+        "key": "all",
+        "label": "Explore All Categories",
+        "icon": "bi-grid-3x3-gap",
+        "hint": "Search across every stocked category in the store",
+        "keywords": (),
+    },
+)
+
+SMART_MATCH_BUDGET_OPTIONS = (
+    {
+        "key": "under_1000",
+        "label": "Under ₹1,000",
+        "range_note": "Price < ₹1,000",
+        "icon": "bi-coin",
+    },
+    {
+        "key": "1000_3000",
+        "label": "₹1,000–₹3,000",
+        "range_note": "₹1,000 ≤ Price ≤ ₹3,000",
+        "icon": "bi-wallet2",
+    },
+    {
+        "key": "3000_5000",
+        "label": "Above ₹3,000–₹5,000",
+        "range_note": "₹3,000 < Price ≤ ₹5,000",
+        "icon": "bi-cash-stack",
+    },
+    {
+        "key": "above_5000",
+        "label": "Above ₹5,000",
+        "range_note": "Price > ₹5,000",
+        "icon": "bi-gem",
+    },
+    {
+        "key": "any",
+        "label": "No budget limit",
+        "range_note": "Any price",
+        "icon": "bi-infinity",
+    },
+)
+
+SMART_MATCH_SORT_OPTIONS = (
+    {
+        "key": "price_asc",
+        "label": "Lowest price first",
+        "hint": "Best for stretching your budget",
+        "icon": "bi-sort-numeric-down",
+    },
+    {
+        "key": "price_desc",
+        "label": "Highest price first",
+        "hint": "Best for flagship & higher-tier picks",
+        "icon": "bi-sort-numeric-up-alt",
+    },
+    {
+        "key": "discount_desc",
+        "label": "Biggest discount first",
+        "hint": "Best for maximum percentage savings",
+        "icon": "bi-percent",
+    },
+    {
+        "key": "newest",
+        "label": "Newest first",
+        "hint": "Best for latest catalog arrivals",
+        "icon": "bi-stars",
+    },
+)
+
+_SMART_CATEGORY_BY_KEY = {item["key"]: item for item in SMART_MATCH_CATEGORY_OPTIONS}
+_SMART_BUDGET_BY_KEY = {item["key"]: item for item in SMART_MATCH_BUDGET_OPTIONS}
+_SMART_SORT_BY_KEY = {item["key"]: item for item in SMART_MATCH_SORT_OPTIONS}
+
+
+def _filter_smart_match_category(queryset, category_key: str):
+    """Filter products to the categories mapped to ``category_key``."""
+    option = _SMART_CATEGORY_BY_KEY.get(category_key)
+    if not option or category_key == "all" or not option["keywords"]:
+        return queryset
+    cat_q = Q()
+    for kw in option["keywords"]:
+        cat_q |= Q(category__name__icontains=kw) | Q(category__slug__icontains=kw)
+    return queryset.filter(cat_q)
+
+
+def _filter_smart_match_budget(queryset, budget_key: str):
+    """Apply exact, non-overlapping budget boundaries on ``effective_price``."""
+    if budget_key == "under_1000":
+        return queryset.filter(effective_price__lt=Decimal("1000.00"))
+    if budget_key == "1000_3000":
+        return queryset.filter(
+            effective_price__gte=Decimal("1000.00"),
+            effective_price__lte=Decimal("3000.00"),
+        )
+    if budget_key == "3000_5000":
+        return queryset.filter(
+            effective_price__gt=Decimal("3000.00"),
+            effective_price__lte=Decimal("5000.00"),
+        )
+    if budget_key == "above_5000":
+        return queryset.filter(effective_price__gt=Decimal("5000.00"))
+    return queryset
+
+
+def _sort_smart_match_products(queryset, sort_key: str):
+    """Order matching products according to the shopper's chosen preference."""
+    if sort_key == "price_asc":
+        return queryset.order_by("effective_price", "-created_at", "id")
+    if sort_key == "price_desc":
+        return queryset.order_by("-effective_price", "-created_at", "id")
+    if sort_key == "discount_desc":
+        return queryset.order_by(
+            "-discount_fraction", "-discount_amount", "effective_price", "-created_at", "id"
+        )
+    return queryset.order_by("-created_at", "-id")
+
+
+def _build_smart_match_reason(
+    product: Product, category_key: str, budget_key: str, sort_key: str
+) -> str:
+    """Build an accurate, stored-data-only explanation for why this product matched."""
+    category_name = product.category.name if product.category else "Store Catalog"
+    cat_label = _SMART_CATEGORY_BY_KEY.get(category_key, {}).get("label", "All Categories")
+    if category_key == "all":
+        category_part = f"From {category_name}"
+    else:
+        category_part = f"In {category_name} (matched for {cat_label})"
+
+    selling_price = inr(product.get_price())
+    budget_phrases = {
+        "under_1000": f"priced at {selling_price} (under ₹1,000)",
+        "1000_3000": f"priced at {selling_price} (within ₹1,000–₹3,000)",
+        "3000_5000": f"priced at {selling_price} (within Above ₹3,000–₹5,000)",
+        "above_5000": f"priced at {selling_price} (above ₹5,000)",
+        "any": f"priced at {selling_price}",
+    }
+    price_part = budget_phrases.get(budget_key, f"priced at {selling_price}")
+
+    if product.has_discount:
+        off_pct = discount_percent(product)
+        saved = inr(savings_amount(product))
+        regular_price = inr(product.price)
+        discount_part = f"saves {saved} ({off_pct}% off list price {regular_price})"
+    else:
+        discount_part = "at its standard list price"
+
+    sort_phrases = {
+        "price_asc": "ranked by lowest selling price",
+        "price_desc": "ranked by highest selling price",
+        "discount_desc": "ranked by biggest discount",
+        "newest": "ranked by newest arrival",
+    }
+    sort_part = sort_phrases.get(sort_key, "ranked by your preference")
+    stock_part = f"{product.stock_quantity} in stock"
+
+    return f"{category_part}, {price_part} — {discount_part}, {sort_part} ({stock_part})."
+
+
+@require_http_methods(["GET", "POST"])
+def smart_match(request: HttpRequest) -> HttpResponse:
+    """Rule-based Northstar Smart Match product recommendation view."""
+    raw_params = request.POST if request.method == "POST" else request.GET
+    has_submission = request.method == "POST" or any(
+        key in raw_params
+        for key in ("category", "interest", "budget", "sort", "sort_by")
+    )
+
+    base_stock_qs = (
+        _annotated_products()
+        .filter(stock_quantity__gt=0)
+        .annotate(
+            discount_amount=ExpressionWrapper(
+                F("price") - Coalesce("discount_price", F("price")),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            )
+        )
+    )
+    catalog_empty = not base_stock_qs.exists()
+
+    default_choices = {
+        "category": "all",
+        "budget": "any",
+        "sort": "discount_desc",
+    }
+
+    recommendations = []
+    total_matches = 0
+    selected_summary = None
+
+    if has_submission:
+        form = SmartMatchForm(raw_params)
+        if form.is_valid():
+            category_key = form.cleaned_data["category"]
+            budget_key = form.cleaned_data["budget"]
+            sort_key = form.cleaned_data["sort"]
+            selected_choices = {
+                "category": category_key,
+                "budget": budget_key,
+                "sort": sort_key,
+            }
+            selected_summary = {
+                "category_label": _SMART_CATEGORY_BY_KEY[category_key]["label"],
+                "budget_label": _SMART_BUDGET_BY_KEY[budget_key]["label"],
+                "sort_label": _SMART_SORT_BY_KEY[sort_key]["label"],
+            }
+            if not catalog_empty:
+                matched_qs = _filter_smart_match_category(base_stock_qs, category_key)
+                matched_qs = _filter_smart_match_budget(matched_qs, budget_key)
+                matched_qs = _sort_smart_match_products(matched_qs, sort_key)
+                total_matches = matched_qs.count()
+                for idx, prod in enumerate(matched_qs[:3], start=1):
+                    recommendations.append(
+                        {
+                            "rank": idx,
+                            "product": prod,
+                            "reason": _build_smart_match_reason(
+                                prod, category_key, budget_key, sort_key
+                            ),
+                        }
+                    )
+        else:
+            selected_choices = {
+                "category": raw_params.get("category") or raw_params.get("interest") or default_choices["category"],
+                "budget": raw_params.get("budget") or default_choices["budget"],
+                "sort": raw_params.get("sort") or raw_params.get("sort_by") or default_choices["sort"],
+            }
+    else:
+        form = SmartMatchForm(initial=default_choices)
+        selected_choices = default_choices
+
+    return render(
+        request,
+        "store/smart_match.html",
+        {
+            "form": form,
+            "has_submission": has_submission,
+            "catalog_empty": catalog_empty,
+            "recommendations": recommendations,
+            "total_matches": total_matches,
+            "selected_choices": selected_choices,
+            "selected_summary": selected_summary,
+            "category_options": SMART_MATCH_CATEGORY_OPTIONS,
+            "budget_options": SMART_MATCH_BUDGET_OPTIONS,
+            "sort_options": SMART_MATCH_SORT_OPTIONS,
         },
     )
 

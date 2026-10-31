@@ -158,6 +158,48 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    // --- Smart Match radio card selection sync -----------------------------
+    document.querySelectorAll(".sm-option-input").forEach((radio) => {
+        radio.addEventListener("change", () => {
+            const group = radio.closest(".sm-options-grid");
+            if (!group) return;
+            group.querySelectorAll(".sm-option-card").forEach((card) => {
+                const input = card.querySelector(".sm-option-input");
+                card.classList.toggle("is-selected", Boolean(input && input.checked));
+            });
+        });
+    });
+
+    // --- Checkout phone number input guard ----------------------------------
+    document.querySelectorAll('input[name="phone_number"]').forEach((phoneInput) => {
+        phoneInput.addEventListener("input", () => {
+            const raw = phoneInput.value;
+            const startsWithPlus = raw.trimStart().startsWith("+");
+            let cleaned = raw.replace(/[^\d\s\-+]/g, "");
+            if (startsWithPlus) {
+                cleaned = "+" + cleaned.replace(/\+/g, "");
+            } else {
+                cleaned = cleaned.replace(/\+/g, "");
+            }
+            const maxDigits = cleaned.startsWith("+91") ? 12 : startsWithPlus ? 12 : 10;
+            let digitCount = 0;
+            let result = "";
+            for (const ch of cleaned) {
+                if (/\d/.test(ch)) {
+                    if (digitCount >= maxDigits) continue;
+                    digitCount += 1;
+                }
+                result += ch;
+            }
+            if (result.length > 16) {
+                result = result.slice(0, 16);
+            }
+            if (result !== raw) {
+                phoneInput.value = result;
+            }
+        });
+    });
+
     // --- Broken image safety net --------------------------------------------
     // Any storefront image that fails to load becomes a tidy placeholder
     // instead of a broken-image icon.
