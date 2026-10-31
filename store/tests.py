@@ -1161,3 +1161,322 @@ class HostHeaderRoutingTests(TestCase):
     def test_an_unlisted_host_is_still_rejected(self):
         response = self.client.get(reverse("store:home"), HTTP_HOST="evil.example.com")
         self.assertEqual(response.status_code, 400)
+
+
+class HomepageMessagingAndHeroTests(TestCase):
+    """Verify Issue 1: consistent ₹999 shipping policy and tech-matched hero product."""
+
+    def setUp(self):
+        self.electronics = Category.objects.create(name="Electronics", slug="electronics")
+        self.stationery = Category.objects.create(name="Stationery", slug="stationery")
+
+    def test_homepage_shipping_copy_is_consistent_with_999_policy(self):
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "FREE SHIPPING ON ORDERS ABOVE ₹999")
+        self.assertContains(response, "Free Shipping Above ₹999")
+        self.assertContains(response, "Free Shipping ₹999+")
+        self.assertNotContains(response, "FREE SHIPPING ON ALL ORDERS")
+
+    def test_hero_prefers_tech_product_even_when_non_tech_product_is_newer(self):
+        tech_product = Product.objects.create(
+            name="ANC Studio Headphones",
+            description="Wireless noise-cancelling headphones",
+            price=Decimal("4999.00"),
+            discount_price=Decimal("3999.00"),
+            category=self.electronics,
+            available=True,
+            stock_quantity=10,
+        )
+        non_tech_product = Product.objects.create(
+            name="Weekly Planner Notebook",
+            description="Hardcover daily and weekly planner",
+            price=Decimal("499.00"),
+            category=self.stationery,
+            available=True,
+            stock_quantity=15,
+        )
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["hero_product"], tech_product)
+        self.assertTrue(response.context["hero_is_tech"])
+        self.assertContains(response, f'class="sv-hero-product-card sv-floating" href="{tech_product.get_absolute_url()}"')
+        # Non-tech product is still shown in featured products, just not as the tech hero visual
+        self.assertIn(non_tech_product, list(response.context["featured_products"]))
+
+    def test_hero_adapts_headline_when_catalog_has_only_non_tech_products(self):
+        planner = Product.objects.create(
+            name="Weekly Planner Notebook",
+            description="Hardcover daily and weekly planner",
+            price=Decimal("499.00"),
+            category=self.stationery,
+            available=True,
+            stock_quantity=15,
+        )
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["hero_product"], planner)
+        self.assertFalse(response.context["hero_is_tech"])
+        self.assertContains(response, "Everyday")
+        self.assertContains(response, f'class="sv-hero-product-card sv-floating" href="{planner.get_absolute_url()}"')
+
+
+class CountdownTimerTests(TestCase):
+    """Verify Issue 2: no fake resetting timers without genuine deadlines."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="Electronics")
+        self.deal_product = Product.objects.create(
+            name="Gaming Mouse",
+            description="Lightweight optical gaming mouse",
+            price=Decimal("2499.00"),
+            discount_price=Decimal("1499.00"),
+            category=self.category,
+            available=True,
+            stock_quantity=4,
+        )
+
+    def test_timers_are_hidden_by_default_when_no_deadline_is_configured(self):
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["flash_deal_timer"])
+        self.assertIsNone(response.context["special_offer_timer"])
+        self.assertNotContains(response, 'id="sv-countdown-hours"')
+        self.assertNotContains(response, 'class="sv-offer-days"')
+        self.assertNotContains(response, "% Sold")
+        self.assertContains(response, "Only 4 left in stock")
+
+    @override_settings(
+        FLASH_DEAL_DEADLINE="2099-12-31T23:59:59+00:00",
+        SPECIAL_OFFER_DEADLINE="2099-12-31T23:59:59+00:00",
+    )
+    def test_timers_bind_to_genuine_configured_deadlines_across_reloads(self):
+        first = self.client.get(reverse("store:home"))
+        second = self.client.get(reverse("store:home"))
+        self.assertEqual(first.status_code, 200)
+        self.assertIsNotNone(first.context["flash_deal_timer"])
+        self.assertFalse(first.context["flash_deal_timer"]["expired"])
+        self.assertEqual(
+            first.context["flash_deal_timer"]["iso"],
+            second.context["flash_deal_timer"]["iso"],
+        )
+        self.assertContains(first, 'data-countdown-deadline="2099-12-31T23:59:59Z"')
+        self.assertContains(first, 'data-offer-deadline="2099-12-31T23:59:59Z"')
+        self.assertContains(first, 'data-countdown-state="active"')
+
+    @override_settings(
+        FLASH_DEAL_DEADLINE="2020-01-01T00:00:00+00:00",
+        SPECIAL_OFFER_DEADLINE="2020-01-01T00:00:00+00:00",
+    )
+    def test_expired_deadlines_render_offer_ended_state(self):
+        response = self.client.get(reverse("store:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["flash_deal_timer"]["expired"])
+        self.assertTrue(response.context["special_offer_timer"]["expired"])
+        self.assertContains(response, 'data-countdown-state="expired"')
+        self.assertContains(response, "Offer ended")
+
+
+class GuestCartAndMergeTests(TestCase):
+    """Verify Issue 3: session guest cart, AJAX operations, and login cart merge."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="Peripherals")
+        self.keyboard = Product.objects.create(
+            name="Mechanical Keyboard",
+            description="Hot-swappable RGB keyboard",
+            price=Decimal("3500.00"),
+            discount_price=Decimal("2999.00"),
+            category=self.category,
+            available=True,
+            stock_quantity=5,
+        )
+        self.mouse = Product.objects.create(
+            name="Ergonomic Mouse",
+            description="Vertical wireless mouse",
+            price=Decimal("1500.00"),
+            category=self.category,
+            available=True,
+            stock_quantity=3,
+        )
+
+    def test_guest_can_add_view_update_and_remove_cart_items(self):
+        # 1. Guest adds item via standard POST
+        add_res = self.client.post(
+            reverse("store:add_to_cart", args=[self.keyboard.id]),
+            {"quantity": 2, "price": "1.00"},  # untrusted client price must be ignored
+            follow=True,
+        )
+        self.assertEqual(add_res.status_code, 200)
+        self.assertContains(add_res, "Mechanical Keyboard")
+        self.assertEqual(add_res.context["cart_count"], 2)
+        self.assertEqual(add_res.context["cart_total"], Decimal("5998.00"))
+
+        # 2. Guest adds item via AJAX
+        ajax_add = self.client.post(
+            reverse("store:add_to_cart", args=[self.mouse.id]),
+            {"quantity": 1},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(ajax_add.status_code, 200)
+        self.assertTrue(ajax_add.json()["ok"])
+        self.assertEqual(ajax_add.json()["cart_count"], 3)
+
+        # 3. Guest updates quantity via AJAX using guest item id (product.id)
+        ajax_update = self.client.post(
+            reverse("store:update_cart", args=[self.keyboard.id]),
+            {"quantity": 4},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(ajax_update.status_code, 200)
+        self.assertEqual(ajax_update.json()["cart_count"], 5)
+
+        # 4. Guest exceeding stock gets 400 with clear stock message
+        over_stock = self.client.post(
+            reverse("store:update_cart", args=[self.keyboard.id]),
+            {"quantity": 99},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(over_stock.status_code, 400)
+        self.assertFalse(over_stock.json()["ok"])
+        self.assertIn("5", over_stock.json()["message"])
+
+        # 5. Guest removes item via AJAX
+        ajax_remove = self.client.post(
+            reverse("store:remove_from_cart", args=[self.mouse.id]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(ajax_remove.status_code, 200)
+        self.assertEqual(ajax_remove.json()["cart_count"], 4)
+
+        # 6. Guest sets quantity to 0 to remove remaining item
+        zero_res = self.client.post(
+            reverse("store:update_cart", args=[self.keyboard.id]),
+            {"quantity": 0},
+            follow=True,
+        )
+        self.assertEqual(zero_res.status_code, 200)
+        self.assertEqual(zero_res.context["cart_count"], 0)
+
+    def test_guest_cart_merges_with_existing_user_cart_on_login_respecting_stock(self):
+        user = User.objects.create_user(
+            username="returning-shopper",
+            email="returning@example.com",
+            password="StrongPassword123!",
+        )
+        # User already has 3 keyboards and 1 mouse in their saved account cart
+        user_cart = Cart.objects.create(user=user)
+        CartItem.objects.create(cart=user_cart, product=self.keyboard, quantity=3)
+        CartItem.objects.create(cart=user_cart, product=self.mouse, quantity=1)
+
+        # While logged out, guest adds 4 keyboards (total 3+4=7 > stock 5, should cap at 5)
+        self.client.post(
+            reverse("store:add_to_cart", args=[self.keyboard.id]),
+            {"quantity": 4},
+        )
+
+        # Checkout redirects guest to login with ?next=/checkout/
+        checkout_res = self.client.get(reverse("store:checkout"))
+        self.assertEqual(checkout_res.status_code, 302)
+        self.assertIn(reverse("store:login"), checkout_res["Location"])
+        self.assertIn("next=/checkout/", checkout_res["Location"])
+
+        # Guest signs in with ?next=/checkout/
+        login_res = self.client.post(
+            f"{reverse('store:login')}?next={reverse('store:checkout')}",
+            {"identifier": "returning-shopper", "password": "StrongPassword123!"},
+        )
+        self.assertRedirects(login_res, reverse("store:checkout"))
+
+        # Verify merged database cart
+        merged_keyboard = CartItem.objects.get(cart=user_cart, product=self.keyboard)
+        merged_mouse = CartItem.objects.get(cart=user_cart, product=self.mouse)
+        self.assertEqual(merged_keyboard.quantity, 5)  # capped at stock_quantity=5
+        self.assertEqual(merged_mouse.quantity, 1)  # existing item preserved
+        self.assertNotIn("guest_cart", self.client.session)
+
+    def test_guest_cart_preserves_next_on_registration_and_merges_on_sign_in(self):
+        self.client.post(
+            reverse("store:add_to_cart", args=[self.mouse.id]),
+            {"quantity": 2},
+        )
+        reg_res = self.client.post(
+            f"{reverse('store:register')}?next={reverse('store:checkout')}",
+            {
+                "username": "brandnewuser",
+                "email": "brandnew@example.com",
+                "first_name": "Brand",
+                "last_name": "New",
+                "password1": "VeryStrongPass123!",
+                "password2": "VeryStrongPass123!",
+            },
+        )
+        self.assertRedirects(
+            reg_res,
+            f"{reverse('store:login')}?next={reverse('store:checkout')}",
+        )
+        login_res = self.client.post(
+            f"{reverse('store:login')}?next={reverse('store:checkout')}",
+            {"identifier": "brandnewuser", "password": "VeryStrongPass123!"},
+        )
+        self.assertRedirects(login_res, reverse("store:checkout"))
+        new_user = User.objects.get(username="brandnewuser")
+        user_cart = Cart.objects.get(user=new_user)
+        self.assertEqual(user_cart.items.count(), 1)
+        self.assertEqual(user_cart.items.first().product, self.mouse)
+        self.assertEqual(user_cart.items.first().quantity, 2)
+
+
+class TemplateCommentLeakTests(TestCase):
+    """Verify Issue 4: multi-line developer comments are never rendered in page HTML."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="comment-tester",
+            email="comment@example.com",
+            password="StrongPassword123!",
+        )
+        self.category = Category.objects.create(name="Accessories")
+        self.product = Product.objects.create(
+            name="USB-C Hub",
+            description="7-in-1 multiport adapter",
+            price=Decimal("1999.00"),
+            category=self.category,
+            available=True,
+            stock_quantity=6,
+        )
+        self.order = Order.objects.create(
+            user=self.user,
+            total_amount=Decimal("1999.00"),
+            status="pending",
+            shipping_address="Comment Tester, 123 Main St, Vadodara 390001",
+            phone_number="9876543210",
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            product_name=self.product.name,
+            price=Decimal("1999.00"),
+            quantity=1,
+        )
+
+    def test_no_template_comment_syntax_or_developer_note_leaks_into_rendered_pages(self):
+        self.client.force_login(self.user)
+        urls = [
+            reverse("store:home"),
+            reverse("store:product_list"),
+            self.product.get_absolute_url(),
+            reverse("store:cart"),
+            reverse("store:order_list"),
+            reverse("store:order_detail", args=[self.order.order_number]),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotContains(response, "{#")
+                self.assertNotContains(response, "#}")
+                self.assertNotContains(response, "Overlay dialogs (Bootstrap modals) must be rendered at body level")
+                self.assertNotContains(response, "ancestor can re-anchor the fixed-position Bootstrap modal")
+                self.assertNotContains(response, "a button may not be nested in the card-wide link")
+

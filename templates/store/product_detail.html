@@ -58,23 +58,19 @@
                 <p class="pd-description">{{ product.description|linebreaksbr }}</p>
 
                 {% if product.is_in_stock %}
-                    {% if user.is_authenticated %}
-                        <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="pd-buy">
-                            {% csrf_token %}
-                            <div class="quantity-control">
-                                <button type="button" class="quantity-button" data-quantity-action="decrease" aria-label="Decrease quantity"><i class="bi bi-dash"></i></button>
-                                <label class="visually-hidden" for="quantity">Quantity</label>
-                                <input id="quantity" name="quantity" type="number" value="1" min="1" max="{{ product.stock_quantity }}" aria-label="Quantity" inputmode="numeric">
-                                <button type="button" class="quantity-button" data-quantity-action="increase" aria-label="Increase quantity"><i class="bi bi-plus"></i></button>
-                            </div>
-                            <button class="btn btn-dark btn-lg rounded-pill pd-add" type="submit"><i class="bi bi-cart-plus me-2"></i>Add to Cart</button>
-                            <button class="btn btn-accent btn-lg rounded-pill pd-buynow" type="submit" name="buy_now" value="1"><i class="bi bi-lightning-charge me-2"></i>Buy Now</button>
-                        </form>
-                    {% else %}
-                        <div class="pd-buy">
-                            <a class="btn btn-accent btn-lg rounded-pill flex-grow-1" href="{% url 'store:login' %}?next={{ product.get_absolute_url|urlencode }}">Sign in to buy<i class="bi bi-arrow-right ms-2"></i></a>
+                    <form method="post" action="{% url 'store:add_to_cart' product.id %}" class="pd-buy">
+                        {% csrf_token %}
+                        <div class="quantity-control">
+                            <button type="button" class="quantity-button" data-quantity-action="decrease" aria-label="Decrease quantity"><i class="bi bi-dash"></i></button>
+                            <label class="visually-hidden" for="quantity">Quantity</label>
+                            <input id="quantity" name="quantity" type="number" value="1" min="1" max="{{ product.stock_quantity }}" aria-label="Quantity" inputmode="numeric">
+                            <button type="button" class="quantity-button" data-quantity-action="increase" aria-label="Increase quantity"><i class="bi bi-plus"></i></button>
                         </div>
-                        <p class="pd-signin-note">New here? <a href="{% url 'store:register' %}">Create a free account</a> to save your cart and track orders.</p>
+                        <button class="btn btn-dark btn-lg rounded-pill pd-add" type="submit"><i class="bi bi-cart-plus me-2"></i>Add to Cart</button>
+                        <button class="btn btn-accent btn-lg rounded-pill pd-buynow" type="submit" name="buy_now" value="1"><i class="bi bi-lightning-charge me-2"></i>Buy Now</button>
+                    </form>
+                    {% if not user.is_authenticated %}
+                        <p class="pd-signin-note">Have an account? <a href="{% url 'store:login' %}?next={{ product.get_absolute_url|urlencode }}">Sign in</a> or <a href="{% url 'store:register' %}">create a free account</a> to save your cart and track orders.</p>
                     {% endif %}
                 {% endif %}
 

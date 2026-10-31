@@ -290,6 +290,11 @@ LOGIN_URL = "store:login"
 LOGIN_REDIRECT_URL = "store:home"
 LOGOUT_REDIRECT_URL = "store:home"
 
+# Optional ISO-8601 deadlines for homepage promotional timers. Left blank by
+# default so the storefront never displays a fake or resetting countdown.
+FLASH_DEAL_DEADLINE = env("FLASH_DEAL_DEADLINE", "")
+SPECIAL_OFFER_DEADLINE = env("SPECIAL_OFFER_DEADLINE", "")
+
 # These settings are safe for local development and become useful when the
 # Railway service is configured to terminate HTTPS.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

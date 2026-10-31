@@ -5,7 +5,7 @@ from .models import Cart, Category, Product
 
 
 def cart_context(request):
-    """Expose a small cart badge count to every page for signed-in users."""
+    """Expose a small cart badge count to every page for signed-in and guest shoppers."""
     cart_count = 0
     if request.user.is_authenticated:
         try:
@@ -19,6 +19,10 @@ def cart_context(request):
             # Do not turn a friendly 500/maintenance page into another error
             # when the database is temporarily unavailable.
             cart_count = 0
+    else:
+        from .views import get_guest_cart_count
+
+        cart_count = get_guest_cart_count(request)
     return {"cart_count": cart_count}
 
 

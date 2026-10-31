@@ -34,7 +34,7 @@
                 <button class="btn btn-accent btn-lg rounded-pill w-100" type="submit">Sign in<i class="bi bi-arrow-right ms-2"></i></button>
             </form>
             <div class="auth-divider"><span>New to Northstar Store?</span></div>
-            <a href="{% url 'store:register' %}" class="btn btn-ghost-dark rounded-pill w-100">Create an account</a>
+            <a href="{% url 'store:register' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-ghost-dark rounded-pill w-100">Create an account</a>
         </div>
     </div>
 </section>

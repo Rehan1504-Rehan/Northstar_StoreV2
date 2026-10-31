@@ -95,13 +95,15 @@
         </div>
     </footer>
 
-    {# Overlay dialogs (Bootstrap modals) must be rendered at body level, not
-       inside the page content. A modal is position:fixed, so any ancestor
-       with a transform or will-change:transform (such as a [data-reveal]
-       entrance wrapper or a hover-lifted card) would re-anchor it to that
-       ancestor instead of the viewport: the page would darken behind the
-       backdrop while the dialog itself floats off-centre or out of view, and
-       every button underneath stays unclickable. #}
+    {% comment %}
+    Overlay dialogs (Bootstrap modals) must be rendered at body level, not
+    inside the page content. A modal is position:fixed, so any ancestor
+    with a transform or will-change:transform (such as a [data-reveal]
+    entrance wrapper or a hover-lifted card) would re-anchor it to that
+    ancestor instead of the viewport: the page would darken behind the
+    backdrop while the dialog itself floats off-centre or out of view, and
+    every button underneath stays unclickable.
+    {% endcomment %}
     {% block modals %}{% endblock %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

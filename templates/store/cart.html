@@ -71,6 +71,9 @@
                     <div class="summary-total"><span>Total</span><strong>{{ cart_total|inr }}</strong></div>
                     {% if cart_savings > 0 %}<p class="summary-save-note">You save {{ cart_savings|inr }} on this order</p>{% endif %}
                     <a href="{% url 'store:checkout' %}" class="btn btn-accent btn-lg rounded-pill w-100 mt-3">Proceed to Checkout<i class="bi bi-arrow-right ms-2"></i></a>
+                    {% if not user.is_authenticated %}
+                        <p class="summary-foot"><i class="bi bi-person-check me-1"></i>Have an account? <a href="{% url 'store:login' %}?next={% url 'store:cart' %}">Sign in</a> to merge your saved cart</p>
+                    {% endif %}
                     <p class="summary-foot"><i class="bi bi-shield-lock me-1"></i>Secure checkout — prices include all offers</p>
                 </div>
             </div>

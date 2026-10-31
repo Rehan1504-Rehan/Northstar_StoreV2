@@ -28,15 +28,21 @@
                         <div class="sv-hero-text">
                             <span class="sv-hero-badge">⚡ Welcome to Northstar Store</span>
                             <h1 class="sv-hero-title">
+                                {% if hero_is_tech %}
                                 <span class="sv-line1">Discover The</span>
                                 <span class="sv-line2">Future of <span class="sv-gradient-text">Tech</span></span>
                                 <span class="sv-line3">At Best Prices</span>
+                                {% else %}
+                                <span class="sv-line1">Discover Curated</span>
+                                <span class="sv-line2">Everyday <span class="sv-gradient-text">Essentials</span></span>
+                                <span class="sv-line3">At Best Prices</span>
+                                {% endif %}
                             </h1>
                             <p class="sv-hero-desc">Discover hand-picked electronics, gaming gear and everyday essentials. Your next upgrade starts here with exclusive online deals!</p>
                             <div class="sv-hero-features">
                                 <div class="sv-hero-feature">
                                     <i class="fas fa-check-circle"></i>
-                                    <span>Free Shipping</span>
+                                    <span>Free Shipping Above ₹999</span>
                                 </div>
                                 <div class="sv-hero-feature">
                                     <i class="fas fa-check-circle"></i>
@@ -74,13 +80,13 @@
                         <div class="sv-hero-visual">
                             <div class="sv-hero-image-wrapper">
                                 <div class="sv-hero-circle-bg"></div>
-                                {% with product=featured_products.0 %}
+                                {% with product=hero_product %}
                                 <a class="sv-hero-product-card sv-floating" href="{% if product %}{{ product.get_absolute_url }}{% else %}{% url 'store:product_list' %}{% endif %}">
                                     <div class="sv-hero-product-img">
-                                    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" fetchpriority="high">
+                                    {% if product and product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" fetchpriority="high">
                                     {% else %}<div class="sv-hero-placeholder"><i class="fas fa-headphones-alt"></i><span>Your next upgrade</span></div>{% endif %}
                                     </div>
-                                    {% if product.has_discount %}<span class="sv-hero-discount-badge">-{{ product|discount_percent }}%</span>{% endif %}
+                                    {% if product and product.has_discount %}<span class="sv-hero-discount-badge">-{{ product|discount_percent }}%</span>{% endif %}
                                 </a>
                                 {% endwith %}
                                 <div class="sv-floating-element sv-float-1">
@@ -89,7 +95,7 @@
                                 </div>
                                 <div class="sv-floating-element sv-float-2">
                                     <i class="fas fa-truck"></i>
-                                    <span>Free Delivery</span>
+                                    <span>Free Shipping ₹999+</span>
                                 </div>
                                 <div class="sv-floating-element sv-float-3">
                                     <i class="fas fa-shield-alt"></i>
@@ -113,14 +119,14 @@
     <section class="sv-marquee-banner">
         <div class="sv-marquee-track">
             <div class="sv-marquee-content">
-                <span>🔥 MEGA SALE - UP TO 70% OFF</span>
-                <span>⚡ FREE SHIPPING ON ALL ORDERS</span>
-                <span>🎁 BUY 2 GET 1 FREE</span>
-                <span>🏷️ USE CODE: NORTHSTAR</span>
-                <span>🔥 MEGA SALE - UP TO 70% OFF</span>
-                <span>⚡ FREE SHIPPING ON ALL ORDERS</span>
-                <span>🎁 BUY 2 GET 1 FREE</span>
-                <span>🏷️ USE CODE: NORTHSTAR</span>
+                <span>🔥 GREAT DEALS ON TOP GEAR</span>
+                <span>⚡ FREE SHIPPING ON ORDERS ABOVE ₹999</span>
+                <span>🔄 EASY 30-DAY RETURNS</span>
+                <span>🔒 100% SECURE CHECKOUT</span>
+                <span>🔥 GREAT DEALS ON TOP GEAR</span>
+                <span>⚡ FREE SHIPPING ON ORDERS ABOVE ₹999</span>
+                <span>🔄 EASY 30-DAY RETURNS</span>
+                <span>🔒 100% SECURE CHECKOUT</span>
             </div>
         </div>
     </section>
@@ -188,6 +194,8 @@
                     <h3>{{ card.category.name }}</h3>
                     <p>{{ card.product_count }}+ Products</p>
                 </a>
+                {% empty %}
+                <p class="text-muted mb-0">Categories coming soon.</p>
                 {% endfor %}
             </div>
         </div>
@@ -202,25 +210,27 @@
                     <span class="sv-section-subtitle">⚡ Don't Miss Out</span>
                     <h2 class="sv-section-title">Flash Deals</h2>
                 </div>
-                <div class="sv-countdown-timer">
-                    <span class="sv-countdown-label">Ends in:</span>
-                    <div class="sv-countdown-boxes">
+                {% if flash_deal_timer %}
+                <div class="sv-countdown-timer{% if flash_deal_timer.expired %} sv-timer-ended{% endif %}" data-countdown-deadline="{{ flash_deal_timer.iso }}" data-countdown-state="{% if flash_deal_timer.expired %}expired{% else %}active{% endif %}">
+                    <span class="sv-countdown-label">{% if flash_deal_timer.expired %}Offer ended{% else %}Ends in:{% endif %}</span>
+                    <div class="sv-countdown-boxes"{% if flash_deal_timer.expired %} hidden{% endif %}>
                         <div class="sv-countdown-box">
-                            <span id="sv-countdown-hours">08</span>
+                            <span id="sv-countdown-hours">{{ flash_deal_timer.total_hours }}</span>
                             <small>Hours</small>
                         </div>
                         <span class="sv-countdown-sep">:</span>
                         <div class="sv-countdown-box">
-                            <span id="sv-countdown-minutes">45</span>
+                            <span id="sv-countdown-minutes">{{ flash_deal_timer.minutes }}</span>
                             <small>Min</small>
                         </div>
                         <span class="sv-countdown-sep">:</span>
                         <div class="sv-countdown-box">
-                            <span id="sv-countdown-seconds">30</span>
+                            <span id="sv-countdown-seconds">{{ flash_deal_timer.seconds }}</span>
                             <small>Sec</small>
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 <a href="{% url 'store:deals' %}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
             </div>
             <div class="sv-products-grid">
@@ -246,7 +256,9 @@
                     </div>
                     <div class="sv-product-info">
                         <span class="sv-product-category">{{ product.category.name }}</span>
-                        <h3 class="sv-product-title">{{ product.name }}</h3>
+                        <h3 class="sv-product-title">
+                            <a href="{{ product.get_absolute_url }}" style="color:inherit;text-decoration:none;">{{ product.name }}</a>
+                        </h3>
                         <div class="sv-product-rating">
                             <div class="sv-stars">
                                 <i class="fas fa-star"></i>
@@ -264,10 +276,7 @@
                             {% endif %}
                         </div>
                         <div class="sv-deal-progress">
-                            <div class="sv-progress-bar">
-                                <div class="sv-progress-fill" style="width: {{ forloop.counter|mul:15|add:30 }}%"></div>
-                            </div>
-                            <span class="sv-sold-count">{{ forloop.counter|mul:15|add:30 }}% Sold</span>
+                            <span class="sv-sold-count">{% if product.stock_quantity <= 5 %}Only {{ product.stock_quantity }} left in stock{% else %}In stock · {{ product.stock_quantity }} available{% endif %}</span>
                         </div>
                     </div>
                 </div>
@@ -378,32 +387,37 @@
         <div class="container">
             <div class="sv-offer-content">
                 <div class="sv-offer-text">
-                    <span class="sv-offer-tag">Limited Time Offer</span>
-                    <h2>Super Sale <span class="sv-gradient-text">50% OFF</span></h2>
-                    <p>Don't miss out on our biggest sale! Browse the best deals across all categories. Shop now and save big!</p>
-                    <div class="sv-offer-timer">
-                        <div class="sv-offer-timer-box">
-                            <span class="sv-offer-days">15</span>
-                            <small>Days</small>
-                        </div>
-                        <div class="sv-offer-timer-box">
-                            <span class="sv-offer-hrs">08</span>
-                            <small>Hours</small>
-                        </div>
-                        <div class="sv-offer-timer-box">
-                            <span class="sv-offer-mins">45</span>
-                            <small>Mins</small>
-                        </div>
-                        <div class="sv-offer-timer-box">
-                            <span class="sv-offer-secs">30</span>
-                            <small>Secs</small>
+                    <span class="sv-offer-tag">{% if special_offer_timer %}Limited Time Offer{% else %}Storewide Deals{% endif %}</span>
+                    <h2>Super Sale <span class="sv-gradient-text">{% if max_discount %}{{ max_discount }}% OFF{% else %}Great Savings{% endif %}</span></h2>
+                    <p>Browse verified discounts across our catalog while stock lasts. Free shipping on orders above ₹999!</p>
+                    {% if special_offer_timer %}
+                    <div class="sv-offer-timer{% if special_offer_timer.expired %} sv-timer-ended{% endif %}" data-offer-deadline="{{ special_offer_timer.iso }}" data-countdown-state="{% if special_offer_timer.expired %}expired{% else %}active{% endif %}">
+                        <span class="sv-offer-status"{% if not special_offer_timer.expired %} hidden{% endif %}>Offer ended</span>
+                        <div class="sv-offer-timer-boxes d-flex gap-3"{% if special_offer_timer.expired %} hidden{% endif %}>
+                            <div class="sv-offer-timer-box">
+                                <span class="sv-offer-days">{{ special_offer_timer.days }}</span>
+                                <small>Days</small>
+                            </div>
+                            <div class="sv-offer-timer-box">
+                                <span class="sv-offer-hrs">{{ special_offer_timer.hours }}</span>
+                                <small>Hours</small>
+                            </div>
+                            <div class="sv-offer-timer-box">
+                                <span class="sv-offer-mins">{{ special_offer_timer.minutes }}</span>
+                                <small>Mins</small>
+                            </div>
+                            <div class="sv-offer-timer-box">
+                                <span class="sv-offer-secs">{{ special_offer_timer.seconds }}</span>
+                                <small>Secs</small>
+                            </div>
                         </div>
                     </div>
+                    {% endif %}
                     <a href="{% url 'store:deals' %}" class="sv-btn sv-btn-primary sv-btn-lg sv-glow-btn">Grab The Deal <i class="fas fa-arrow-right"></i></a>
                 </div>
                 <div class="sv-offer-visual">
                     <div class="sv-offer-circle"></div>
-                    <div class="sv-offer-percent">50<span>%</span></div>
+                    <div class="sv-offer-percent">{% if max_discount %}{{ max_discount }}{% else %}SALE{% endif %}<span>{% if max_discount %}%{% endif %}</span></div>
                 </div>
             </div>
         </div>
@@ -418,7 +432,7 @@
                     <span class="sv-section-subtitle">{{ section.product_count }} product{{ section.product_count|pluralize }}</span>
                     <h2 class="sv-section-title">{{ section.category.name }}</h2>
                 </div>
-                <a href="{{ section.category.get_absolute_url }}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
+                <a href="{{ section.category.get_absolute_url }}" class="sv-view-all-btn">View all {{ section.category.name }} <i class="fas fa-arrow-right"></i></a>
             </div>
             <div class="sv-products-grid">
                 {% for product in section.products %}

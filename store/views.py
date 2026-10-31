@@ -1,27 +1,35 @@
+from datetime import datetime, timezone as datetime_timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.signals import user_logged_in
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.base import File
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, FloatField, Prefetch, Q, Value
 from django.db.models.functions import Coalesce
+from django.dispatch import receiver
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.cache import get_conditional_response
+from django.utils.dateparse import parse_datetime
+from django.utils.http import http_date, url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.static import serve as static_serve
-from django.utils.cache import get_conditional_response
-from django.utils.http import http_date, url_has_allowed_host_and_scheme
 
 from .forms import CheckoutForm, LoginForm, ProfileForm, RegistrationForm
 from .models import Cart, CartItem, Category, MediaFile, Order, OrderItem, Product
 from .storage import normalize_name
+from .templatetags.store_extras import discount_percent
 
 
 class OutOfStockError(Exception):
@@ -161,11 +169,226 @@ def _render_listing(request, listing_extra, base_products):
     return render(request, "store/product_list.html", context)
 
 
+_TECH_CATEGORY_KEYWORDS = (
+    "electronic",
+    "tech",
+    "gadget",
+    "audio",
+    "sound",
+    "headphone",
+    "earphone",
+    "earbud",
+    "speaker",
+    "game",
+    "gaming",
+    "console",
+    "mobile",
+    "phone",
+    "smartphone",
+    "laptop",
+    "computer",
+    "camera",
+    "tv",
+    "television",
+    "monitor",
+    "display",
+    "keyboard",
+    "mouse",
+    "tablet",
+    "watch",
+    "wearable",
+)
+
+_TECH_PRODUCT_KEYWORDS = (
+    "headphone",
+    "earphone",
+    "earbud",
+    "speaker",
+    "audio",
+    "soundbar",
+    "microphone",
+    "gaming",
+    "controller",
+    "console",
+    "gamepad",
+    "arcade",
+    "keyboard",
+    "mouse",
+    "monitor",
+    "display",
+    "laptop",
+    "computer",
+    "webcam",
+    "router",
+    "ssd",
+    "smartphone",
+    "tablet",
+    "smartwatch",
+    "camera",
+    "drone",
+    "projector",
+    "charger",
+    "power bank",
+    "usb",
+    "bluetooth",
+    "wireless",
+    "smart plug",
+    "desk light",
+    "lamp",
+)
+
+_NON_TECH_KEYWORDS = (
+    "planner",
+    "stationery",
+    "diary",
+    "journal",
+    "notebook",
+    "pen",
+    "pencil",
+    "book",
+    "novel",
+    "paper",
+    "fashion",
+    "cloth",
+    "apparel",
+    "t-shirt",
+    "shirt",
+    "tee",
+    "jeans",
+    "trouser",
+    "dress",
+    "kurta",
+    "saree",
+    "jacket",
+    "hoodie",
+    "shoe",
+    "sneaker",
+    "sandal",
+    "boot",
+    "footwear",
+    "beauty",
+    "cosmetic",
+    "skincare",
+    "lipstick",
+    "shampoo",
+    "lotion",
+    "cream",
+    "perfume",
+    "pillow",
+    "cushion",
+    "curtain",
+    "bedsheet",
+    "towel",
+    "mug",
+    "bottle",
+    "grocery",
+    "cookware",
+)
+
+GUEST_CART_SESSION_KEY = "guest_cart"
+
+
+def _is_tech_product(product: Product) -> bool:
+    """Return True when a product fits the electronics, audio, or gaming hero."""
+    product_text = f"{product.name} {product.slug}".lower()
+    if any(word in product_text for word in _NON_TECH_KEYWORDS):
+        return False
+    if product.category_id and product.category:
+        category_text = f"{product.category.name} {product.category.slug}".lower()
+        if any(word in category_text for word in _NON_TECH_KEYWORDS):
+            return False
+        if any(word in category_text for word in _TECH_CATEGORY_KEYWORDS):
+            return True
+    full_text = f"{product_text} {product.description or ''}".lower()
+    return any(word in full_text for word in _TECH_PRODUCT_KEYWORDS)
+
+
+def _select_hero_product(in_stock_products: list[Product]) -> Product | None:
+    """Pick a hero product that matches the homepage's tech positioning.
+
+    Prefers an in-stock electronics, audio, or gaming product with a valid
+    image so a newly added stationery or fashion item (such as a Weekly
+    Planner) does not replace the tech hero visual.
+    """
+    if not in_stock_products:
+        return None
+    tech_with_image = [
+        p for p in in_stock_products if _is_tech_product(p) and bool(p.image)
+    ]
+    if tech_with_image:
+        return tech_with_image[0]
+    tech_any = [p for p in in_stock_products if _is_tech_product(p)]
+    if tech_any:
+        return tech_any[0]
+    with_image = [p for p in in_stock_products if bool(p.image)]
+    if with_image:
+        return with_image[0]
+    return in_stock_products[0]
+
+
+def _build_countdown_context(raw_deadline) -> dict | None:
+    """Parse a genuine offer deadline into server-side countdown values.
+
+    Returns ``None`` when no deadline is configured or the value cannot be
+    parsed, so templates hide the timer instead of inventing a fake one.
+    """
+    if not raw_deadline:
+        return None
+    if isinstance(raw_deadline, datetime):
+        parsed = raw_deadline
+    elif isinstance(raw_deadline, str):
+        cleaned = raw_deadline.strip()
+        if not cleaned:
+            return None
+        try:
+            parsed = parse_datetime(cleaned)
+        except ValueError:
+            parsed = None
+        if parsed is None:
+            return None
+    else:
+        return None
+
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, datetime_timezone.utc)
+    else:
+        parsed = parsed.astimezone(datetime_timezone.utc)
+
+    now = timezone.now()
+    remaining_seconds = max(0, int((parsed - now).total_seconds()))
+    expired = remaining_seconds <= 0
+
+    days, rem = divmod(remaining_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, seconds = divmod(rem, 60)
+    total_hours = days * 24 + hours
+
+    return {
+        "iso": parsed.isoformat().replace("+00:00", "Z"),
+        "expired": expired,
+        "days": f"{days:02d}",
+        "hours": f"{hours:02d}",
+        "total_hours": f"{total_hours:02d}",
+        "minutes": f"{minutes:02d}",
+        "seconds": f"{seconds:02d}",
+    }
+
+
 def home(request: HttpRequest) -> HttpResponse:
     in_stock = Q(products__available=True, products__stock_quantity__gt=0)
-    featured_products = Product.objects.filter(
-        available=True, stock_quantity__gt=0
-    ).select_related("category")[:8]
+    all_in_stock = list(
+        Product.objects.filter(available=True, stock_quantity__gt=0).select_related("category")
+    )
+    hero_product = _select_hero_product(all_in_stock)
+    featured_products = list(all_in_stock[:8])
+    if hero_product and hero_product not in featured_products:
+        featured_products = [hero_product] + featured_products[:7]
+    elif hero_product and featured_products and featured_products[0].pk != hero_product.pk:
+        featured_products = [hero_product] + [
+            p for p in featured_products if p.pk != hero_product.pk
+        ]
+    hero_is_tech = True if hero_product is None else _is_tech_product(hero_product)
+
     # Every category that currently has stock gets the same homepage treatment
     # as All Products / Electronics / Gaming: a shop-by card plus a product
     # shelf. Empty categories stay off the storefront until they have items.
@@ -197,17 +420,27 @@ def home(request: HttpRequest) -> HttpResponse:
                 "product_count": category.product_count,
             }
         )
-    deal_products = Product.objects.filter(
-        available=True, stock_quantity__gt=0, discount_price__isnull=False
-    ).select_related("category")[:4]
+    deal_products = list(
+        Product.objects.filter(
+            available=True, stock_quantity__gt=0, discount_price__isnull=False
+        ).select_related("category")[:4]
+    )
+    max_discount = max((discount_percent(p) for p in deal_products), default=0)
+    flash_deal_timer = _build_countdown_context(getattr(settings, "FLASH_DEAL_DEADLINE", ""))
+    special_offer_timer = _build_countdown_context(getattr(settings, "SPECIAL_OFFER_DEADLINE", ""))
     return render(
         request,
         "store/home.html",
         {
+            "hero_product": hero_product,
+            "hero_is_tech": hero_is_tech,
             "featured_products": featured_products,
             "category_cards": category_cards,
             "category_sections": category_sections,
             "deal_products": deal_products,
+            "max_discount": max_discount,
+            "flash_deal_timer": flash_deal_timer,
+            "special_offer_timer": special_offer_timer,
         },
     )
 
@@ -257,12 +490,19 @@ def product_detail(request: HttpRequest, slug: str) -> HttpResponse:
 def register_view(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect("store:home")
+    next_url = request.GET.get("next") or request.POST.get("next") or ""
     form = RegistrationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Your account was created. You can now sign in.")
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(f"{reverse('store:login')}?{urlencode({'next': next_url})}")
         return redirect("store:login")
-    return render(request, "store/register.html", {"form": form})
+    return render(request, "store/register.html", {"form": form, "next": next_url})
 
 
 @require_http_methods(["GET", "POST"])
@@ -273,11 +513,13 @@ def login_view(request: HttpRequest) -> HttpResponse:
     next_url = request.GET.get("next") or request.POST.get("next") or ""
     form = LoginForm(request=request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
-        login(request, form.get_user())
+        user = form.get_user()
+        login(request, user)
+        merge_guest_cart_into_user_cart(request, user)
         if not form.cleaned_data.get("remember_me"):
             # Session-only cookie: signed out when the browser closes.
             request.session.set_expiry(0)
-        messages.success(request, f"Welcome back, {form.get_user().get_username()}!")
+        messages.success(request, f"Welcome back, {user.get_username()}!")
         if next_url and url_has_allowed_host_and_scheme(
             next_url,
             allowed_hosts={request.get_host()},
@@ -335,6 +577,187 @@ def change_password(request: HttpRequest) -> HttpResponse:
     return render(request, "store/change_password.html", {"form": form})
 
 
+class GuestCartItem:
+    """In-memory line item for a session-backed guest cart.
+
+    Prices and subtotals are always computed on the server from the live
+    ``Product`` model — never stored in the session or read from the client.
+    """
+
+    def __init__(self, product: Product, quantity: int):
+        self.id = product.pk
+        self.pk = product.pk
+        self.product = product
+        self.product_id = product.pk
+        self.quantity = quantity
+
+    @property
+    def subtotal(self) -> Decimal:
+        return self.product.get_price() * self.quantity
+
+
+class GuestCart:
+    """Lightweight cart wrapper for templates when the shopper is signed out."""
+
+    def __init__(self, items: list[GuestCartItem]):
+        self.items = items
+
+    def item_count(self) -> int:
+        return sum(item.quantity for item in self.items)
+
+    def total(self) -> Decimal:
+        return sum((item.subtotal for item in self.items), Decimal("0.00"))
+
+
+def _get_session_cart(request: HttpRequest) -> dict[str, int]:
+    """Read and sanitize the guest cart mapping ``{product_id_str: quantity}``."""
+    session = getattr(request, "session", None)
+    if session is None:
+        return {}
+    raw = session.get(GUEST_CART_SESSION_KEY, {})
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, int] = {}
+    for key, value in raw.items():
+        try:
+            pid = int(str(key).strip())
+            qty = int(value)
+        except (TypeError, ValueError):
+            continue
+        if pid > 0 and qty > 0:
+            cleaned[str(pid)] = qty
+    return cleaned
+
+
+def _save_session_cart(request: HttpRequest, cart_data: dict[str, int]) -> None:
+    """Persist the sanitized guest cart dictionary into the session."""
+    session = getattr(request, "session", None)
+    if session is None:
+        return
+    sanitized = {str(k): int(v) for k, v in cart_data.items() if int(v) > 0}
+    if sanitized:
+        session[GUEST_CART_SESSION_KEY] = sanitized
+    else:
+        session.pop(GUEST_CART_SESSION_KEY, None)
+    session.modified = True
+
+
+def get_guest_cart_count(request: HttpRequest) -> int:
+    """Total item quantity currently in the guest's session cart."""
+    return sum(_get_session_cart(request).values())
+
+
+def _get_guest_cart_and_items(request: HttpRequest) -> tuple[GuestCart, list[GuestCartItem]]:
+    """Build guest cart items using trusted product rows from the database."""
+    session_cart = _get_session_cart(request)
+    if not session_cart:
+        return GuestCart([]), []
+
+    product_ids = [int(pid) for pid in session_cart.keys()]
+    products_by_id = {
+        product.pk: product
+        for product in Product.objects.filter(pk__in=product_ids).select_related("category")
+    }
+    items: list[GuestCartItem] = []
+    stale_removed = False
+    for pid_str, quantity in list(session_cart.items()):
+        product = products_by_id.get(int(pid_str))
+        if product is None:
+            session_cart.pop(pid_str, None)
+            stale_removed = True
+            continue
+        items.append(GuestCartItem(product=product, quantity=quantity))
+
+    if stale_removed:
+        _save_session_cart(request, session_cart)
+
+    return GuestCart(items), items
+
+
+def merge_guest_cart_into_user_cart(request: HttpRequest | None, user) -> None:
+    """Merge any session guest cart into the authenticated user's database cart.
+
+    - Preserves all existing items in the user's account cart.
+    - Sums quantities when the same product exists in both carts.
+    - Caps quantities at available product stock and notifies the user if any
+      line had to be adjusted.
+    """
+    if request is None or user is None or not getattr(user, "is_authenticated", False):
+        return
+    session_cart = _get_session_cart(request)
+    if not session_cart:
+        return
+
+    # Clear the session cart up front so duplicate calls (signal + view) are a no-op.
+    _save_session_cart(request, {})
+
+    with transaction.atomic():
+        cart, _ = Cart.objects.get_or_create(user=user)
+        existing_items = {
+            item.product_id: item
+            for item in CartItem.objects.select_for_update().filter(cart=cart)
+        }
+        product_ids = [int(pid) for pid in session_cart.keys()]
+        products = {
+            product.pk: product
+            for product in Product.objects.select_for_update().filter(pk__in=product_ids)
+        }
+
+        for pid_str, guest_qty in session_cart.items():
+            pid = int(pid_str)
+            product = products.get(pid)
+            existing_item = existing_items.get(pid)
+            if product is None:
+                continue
+
+            if not product.available or product.stock_quantity <= 0:
+                if existing_item is None:
+                    messages.add_message(
+                        request,
+                        messages.WARNING,
+                        f"{product.name} is currently out of stock and could not be added to your cart.",
+                        fail_silently=True,
+                    )
+                continue
+
+            if existing_item is not None:
+                desired_qty = existing_item.quantity + guest_qty
+                new_qty = min(desired_qty, product.stock_quantity)
+                if new_qty < desired_qty:
+                    messages.add_message(
+                        request,
+                        messages.WARNING,
+                        f"Only {product.stock_quantity} item(s) of {product.name} are in stock; "
+                        f"your cart quantity was set to {new_qty}.",
+                        fail_silently=True,
+                    )
+                if existing_item.quantity != new_qty:
+                    existing_item.quantity = new_qty
+                    existing_item.save(update_fields=["quantity"])
+            else:
+                new_qty = min(guest_qty, product.stock_quantity)
+                if new_qty < guest_qty:
+                    messages.add_message(
+                        request,
+                        messages.WARNING,
+                        f"Only {product.stock_quantity} item(s) of {product.name} are in stock; "
+                        f"added {new_qty} to your cart.",
+                        fail_silently=True,
+                    )
+                existing_items[pid] = CartItem.objects.create(
+                    cart=cart,
+                    product=product,
+                    quantity=new_qty,
+                )
+
+        cart.save(update_fields=["updated_at"])
+
+
+@receiver(user_logged_in)
+def _merge_guest_cart_on_login(sender, request, user, **kwargs):
+    merge_guest_cart_into_user_cart(request, user)
+
+
 @login_required
 def _get_user_cart(request: HttpRequest) -> Cart:
     cart, _ = Cart.objects.get_or_create(user=request.user)
@@ -354,16 +777,17 @@ def _cart_totals(items):
     }
 
 
-@login_required
 def cart_view(request: HttpRequest) -> HttpResponse:
-    cart = _get_user_cart(request)
-    items = list(cart.items.select_related("product", "product__category").all())
+    if request.user.is_authenticated:
+        cart = _get_user_cart(request)
+        items = list(cart.items.select_related("product", "product__category").all())
+    else:
+        cart, items = _get_guest_cart_and_items(request)
     context = {"cart": cart, "items": items, **_cart_totals(items)}
     return render(request, "store/cart.html", context)
 
 
 @require_POST
-@login_required
 def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
     wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     product = get_object_or_404(Product, pk=product_id, available=True)
@@ -373,6 +797,7 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
             return JsonResponse({"ok": False, "message": message}, status=status)
         messages.error(request, message)
         return redirect(product.get_absolute_url())
+
     try:
         quantity = int(request.POST.get("quantity", 1))
     except (TypeError, ValueError):
@@ -383,25 +808,42 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
     if quantity > product.stock_quantity:
         return add_error(f"Only {product.stock_quantity} item(s) are currently in stock.")
 
-    cart = _get_user_cart(request)
-    item, created = CartItem.objects.get_or_create(
-        cart=cart,
-        product=product,
-        defaults={"quantity": quantity},
-    )
-    if not created:
-        new_quantity = item.quantity + quantity
+    if request.user.is_authenticated:
+        cart = _get_user_cart(request)
+        item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            defaults={"quantity": quantity},
+        )
+        if not created:
+            new_quantity = item.quantity + quantity
+            if new_quantity > product.stock_quantity:
+                return add_error(
+                    f"Your cart cannot contain more than {product.stock_quantity} of this product."
+                )
+            item.quantity = new_quantity
+            item.save(update_fields=["quantity"])
+        cart.save(update_fields=["updated_at"])
+        cart_count = cart.item_count()
+    else:
+        guest_cart = _get_session_cart(request)
+        key = str(product.pk)
+        existing_quantity = guest_cart.get(key, 0)
+        new_quantity = existing_quantity + quantity
         if new_quantity > product.stock_quantity:
-            return add_error(f"Your cart cannot contain more than {product.stock_quantity} of this product.")
-        item.quantity = new_quantity
-        item.save(update_fields=["quantity"])
-    cart.save(update_fields=["updated_at"])
+            return add_error(
+                f"Your cart cannot contain more than {product.stock_quantity} of this product."
+            )
+        guest_cart[key] = new_quantity
+        _save_session_cart(request, guest_cart)
+        cart_count = sum(guest_cart.values())
+
     success_message = f"{product.name} was added to your cart."
     if wants_json:
         return JsonResponse({
             "ok": True,
             "message": success_message,
-            "cart_count": cart.item_count(),
+            "cart_count": cart_count,
         })
     messages.success(request, success_message)
     if request.POST.get("buy_now") == "1":
@@ -410,13 +852,7 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
 
 
 @require_POST
-@login_required
 def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
-    item = get_object_or_404(
-        CartItem.objects.select_related("product"),
-        pk=item_id,
-        cart__user=request.user,
-    )
     wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     # A missing or unreadable quantity is a broken request, not a request to
@@ -432,43 +868,102 @@ def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
         messages.error(request, message)
         return redirect("store:cart")
 
+    if request.user.is_authenticated:
+        item = get_object_or_404(
+            CartItem.objects.select_related("product"),
+            pk=item_id,
+            cart__user=request.user,
+        )
+        if quantity <= 0:
+            item.delete()
+            message = f"{item.product.name} was removed from your cart."
+            if not wants_json:
+                messages.info(request, message)
+        elif not item.product.available:
+            message = f"{item.product.name} is no longer available."
+            if wants_json:
+                return JsonResponse({"ok": False, "message": message}, status=400)
+            messages.error(request, message)
+        elif quantity > item.product.stock_quantity:
+            message = f"Only {item.product.stock_quantity} item(s) of {item.product.name} are in stock."
+            if wants_json:
+                return JsonResponse({"ok": False, "message": message}, status=400)
+            messages.error(request, message)
+        else:
+            item.quantity = quantity
+            item.save(update_fields=["quantity"])
+            item.cart.save(update_fields=["updated_at"])
+            message = "Your cart was updated."
+            if not wants_json:
+                messages.success(request, message)
+        if wants_json:
+            return JsonResponse({"ok": True, "message": message, "cart_count": item.cart.item_count()})
+        return redirect("store:cart")
+
+    guest_cart = _get_session_cart(request)
+    key = str(item_id)
+    if key not in guest_cart:
+        raise Http404("Item not found in guest cart.")
+
+    product = Product.objects.filter(pk=item_id).first()
+    if product is None:
+        guest_cart.pop(key, None)
+        _save_session_cart(request, guest_cart)
+        raise Http404("Product not found.")
+
     if quantity <= 0:
-        item.delete()
-        message = f"{item.product.name} was removed from your cart."
+        guest_cart.pop(key, None)
+        _save_session_cart(request, guest_cart)
+        message = f"{product.name} was removed from your cart."
         if not wants_json:
             messages.info(request, message)
-    elif not item.product.available:
-        message = f"{item.product.name} is no longer available."
+    elif not product.available:
+        message = f"{product.name} is no longer available."
         if wants_json:
             return JsonResponse({"ok": False, "message": message}, status=400)
         messages.error(request, message)
-    elif quantity > item.product.stock_quantity:
-        message = f"Only {item.product.stock_quantity} item(s) of {item.product.name} are in stock."
+    elif quantity > product.stock_quantity:
+        message = f"Only {product.stock_quantity} item(s) of {product.name} are in stock."
         if wants_json:
             return JsonResponse({"ok": False, "message": message}, status=400)
         messages.error(request, message)
     else:
-        item.quantity = quantity
-        item.save(update_fields=["quantity"])
-        item.cart.save(update_fields=["updated_at"])
+        guest_cart[key] = quantity
+        _save_session_cart(request, guest_cart)
         message = "Your cart was updated."
         if not wants_json:
             messages.success(request, message)
+
     if wants_json:
-        return JsonResponse({"ok": True, "message": message, "cart_count": item.cart.item_count()})
+        return JsonResponse(
+            {"ok": True, "message": message, "cart_count": sum(guest_cart.values())}
+        )
     return redirect("store:cart")
 
 
 @require_POST
-@login_required
 def remove_from_cart(request: HttpRequest, item_id: int) -> HttpResponse:
-    item = get_object_or_404(CartItem, pk=item_id, cart__user=request.user)
-    name = item.product.name
-    cart = item.cart
-    item.delete()
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    if request.user.is_authenticated:
+        item = get_object_or_404(CartItem, pk=item_id, cart__user=request.user)
+        name = item.product.name
+        cart = item.cart
+        item.delete()
+        cart_count = cart.item_count()
+    else:
+        guest_cart = _get_session_cart(request)
+        key = str(item_id)
+        if key not in guest_cart:
+            raise Http404("Item not found in guest cart.")
+        product = Product.objects.filter(pk=item_id).first()
+        name = product.name if product else "Item"
+        guest_cart.pop(key, None)
+        _save_session_cart(request, guest_cart)
+        cart_count = sum(guest_cart.values())
+
     message = f"{name} was removed from your cart."
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return JsonResponse({"ok": True, "message": message, "cart_count": cart.item_count()})
+    if wants_json:
+        return JsonResponse({"ok": True, "message": message, "cart_count": cart_count})
     messages.info(request, message)
     return redirect("store:cart")
 

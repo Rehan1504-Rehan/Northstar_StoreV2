@@ -19,8 +19,10 @@
     {% if orders %}
         <div class="orders-list" data-reveal>
             {% for order in orders %}
-                {# The card is a plain container so the cancel button can live
-                   inside it: a button may not be nested in the card-wide link. #}
+                {% comment %}
+                The card is a plain container so the cancel button can live
+                inside it: a button may not be nested in the card-wide link.
+                {% endcomment %}
                 <div class="order-card">
                     <a class="order-card-link" href="{{ order.get_absolute_url }}">
                         <div class="order-card-top">
