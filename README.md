@@ -32,7 +32,7 @@ It is intentionally a simple order system: customers can place an order with shi
 ## Folder structure
 
 ```text
-project_02/
+Northstar_StoreV2/
 ├── manage.py
 ├── requirements.txt
 ├── Procfile
