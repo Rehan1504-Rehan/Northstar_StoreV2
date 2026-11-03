@@ -2,19 +2,6 @@
 {% load static store_extras %}
 {% block title %}Northstar Store — Your Premium Shopping Destination{% endblock %}
 {% block content %}
-<!-- Preloader with enhanced animation -->
-<div id="sv-preloader" class="sv-preloader">
-    <div class="sv-loader">
-        <div class="sv-cart-icon-loader">
-            <i class="fas fa-shopping-cart"></i>
-        </div>
-        <div class="sv-loader-dots">
-            <span></span><span></span><span></span>
-        </div>
-        <div class="sv-loader-text">Loading Experience...</div>
-    </div>
-</div>
-
 <!-- Toast Container -->
 <div id="sv-toast-container"></div>
 
@@ -33,20 +20,6 @@
                                 <span class="sv-line3">for your everyday life.</span>
                             </h1>
                             <p class="sv-hero-desc">Discover hand-picked essentials for your home, work, and everyday adventures—all in one place.</p>
-                            <div class="sv-hero-features">
-                                <div class="sv-hero-feature">
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Free Shipping Above ₹999</span>
-                                </div>
-                                <div class="sv-hero-feature">
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Easy Returns</span>
-                                </div>
-                                <div class="sv-hero-feature">
-                                    <i class="fas fa-check-circle"></i>
-                                    <span>Secure Payment</span>
-                                </div>
-                            </div>
                             <div class="sv-hero-actions">
                                 <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-primary sv-btn-lg sv-hero-btn">
                                     <span>Shop Now</span>
@@ -59,20 +32,6 @@
                                     <i class="fas fa-compass"></i>
                                     <span>Find My Perfect Product</span>
                                 </a>
-                            </div>
-                            <div class="sv-hero-stats">
-                                <div class="sv-hero-stat">
-                                    <span class="sv-stat-number" data-count="50">0</span><span class="sv-stat-suffix">+</span>
-                                    <span class="sv-stat-label">Products</span>
-                                </div>
-                                <div class="sv-hero-stat">
-                                    <span class="sv-stat-number" data-count="200">0</span><span class="sv-stat-suffix">+</span>
-                                    <span class="sv-stat-label">Happy Customers</span>
-                                </div>
-                                <div class="sv-hero-stat">
-                                    <span class="sv-stat-number" data-count="10">0</span><span class="sv-stat-suffix">+</span>
-                                    <span class="sv-stat-label">Brands</span>
-                                </div>
                             </div>
                         </div>
                         <div class="sv-hero-visual">
@@ -97,18 +56,6 @@
                                     {% endif %}
                                 </a>
                                 {% endwith %}
-                                <div class="sv-floating-element sv-float-1">
-                                    <i class="fas fa-star"></i>
-                                    <span>4.9 Rating</span>
-                                </div>
-                                <div class="sv-floating-element sv-float-2">
-                                    <i class="fas fa-truck"></i>
-                                    <span>Free Shipping ₹999+</span>
-                                </div>
-                                <div class="sv-floating-element sv-float-3">
-                                    <i class="fas fa-shield-alt"></i>
-                                    <span>Warranty</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -118,66 +65,6 @@
                     <div class="sv-shape sv-shape-2"></div>
                     <div class="sv-shape sv-shape-3"></div>
                     <div class="sv-shape sv-shape-4"></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Marquee Banner -->
-    <section class="sv-marquee-banner">
-        <div class="sv-marquee-track">
-            <div class="sv-marquee-content">
-                <span>🔥 GREAT DEALS ON TOP GEAR</span>
-                <span>⚡ FREE SHIPPING ON ORDERS ABOVE ₹999</span>
-                <span>🔄 EASY 30-DAY RETURNS</span>
-                <span>🔒 100% SECURE CHECKOUT</span>
-                <span>🔥 GREAT DEALS ON TOP GEAR</span>
-                <span>⚡ FREE SHIPPING ON ORDERS ABOVE ₹999</span>
-                <span>🔄 EASY 30-DAY RETURNS</span>
-                <span>🔒 100% SECURE CHECKOUT</span>
-            </div>
-        </div>
-    </section>
-
-    <!-- Service Features -->
-    <section class="sv-services-strip">
-        <div class="container">
-            <div class="sv-services-grid">
-                <div class="sv-service-item" data-sv-aos="fade-up">
-                    <div class="sv-service-icon">
-                        <i class="fas fa-truck"></i>
-                    </div>
-                    <div class="sv-service-text">
-                        <h4>Free Shipping</h4>
-                        <p>On orders above ₹999</p>
-                    </div>
-                </div>
-                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="100">
-                    <div class="sv-service-icon">
-                        <i class="fas fa-undo"></i>
-                    </div>
-                    <div class="sv-service-text">
-                        <h4>Easy Returns</h4>
-                        <p>30-day return policy</p>
-                    </div>
-                </div>
-                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="200">
-                    <div class="sv-service-icon">
-                        <i class="fas fa-lock"></i>
-                    </div>
-                    <div class="sv-service-text">
-                        <h4>Secure Payment</h4>
-                        <p>100% secure checkout</p>
-                    </div>
-                </div>
-                <div class="sv-service-item" data-sv-aos="fade-up" data-sv-aos-delay="300">
-                    <div class="sv-service-icon">
-                        <i class="fas fa-headset"></i>
-                    </div>
-                    <div class="sv-service-text">
-                        <h4>24/7 Support</h4>
-                        <p>Dedicated support</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -238,27 +125,6 @@
                     <span class="sv-section-subtitle">⚡ Don't Miss Out</span>
                     <h2 class="sv-section-title">Flash Deals</h2>
                 </div>
-                {% if flash_deal_timer %}
-                <div class="sv-countdown-timer{% if flash_deal_timer.expired %} sv-timer-ended{% endif %}" data-countdown-deadline="{{ flash_deal_timer.iso }}" data-countdown-state="{% if flash_deal_timer.expired %}expired{% else %}active{% endif %}">
-                    <span class="sv-countdown-label">{% if flash_deal_timer.expired %}Offer ended{% else %}Ends in:{% endif %}</span>
-                    <div class="sv-countdown-boxes"{% if flash_deal_timer.expired %} hidden{% endif %}>
-                        <div class="sv-countdown-box">
-                            <span id="sv-countdown-hours">{{ flash_deal_timer.total_hours }}</span>
-                            <small>Hours</small>
-                        </div>
-                        <span class="sv-countdown-sep">:</span>
-                        <div class="sv-countdown-box">
-                            <span id="sv-countdown-minutes">{{ flash_deal_timer.minutes }}</span>
-                            <small>Min</small>
-                        </div>
-                        <span class="sv-countdown-sep">:</span>
-                        <div class="sv-countdown-box">
-                            <span id="sv-countdown-seconds">{{ flash_deal_timer.seconds }}</span>
-                            <small>Sec</small>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
                 <a href="{% url 'store:deals' %}" class="sv-view-all-btn">View All <i class="fas fa-arrow-right"></i></a>
             </div>
             <div class="sv-products-grid">
@@ -270,8 +136,6 @@
                     <div class="sv-product-image">
                         {% if product.image %}
                         <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
-                        {% else %}
-                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
                         {% endif %}
                         <div class="sv-product-actions">
                             <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="View"><i class="fas fa-eye"></i></a>
@@ -287,16 +151,6 @@
                         <h3 class="sv-product-title">
                             <a href="{{ product.get_absolute_url }}" style="color:inherit;text-decoration:none;">{{ product.name }}</a>
                         </h3>
-                        <div class="sv-product-rating">
-                            <div class="sv-stars">
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star-half-alt"></i>
-                            </div>
-                            <span class="sv-rating-count">Hot</span>
-                        </div>
                         <div class="sv-product-price">
                             <span class="sv-current-price">{{ product.get_price|inr }}</span>
                             {% if product.has_discount %}
@@ -313,41 +167,6 @@
         </div>
     </section>
     {% endif %}
-
-    <!-- Promo Banners -->
-    <section class="sv-promo-banners">
-        <div class="container">
-            <div class="sv-promo-grid">
-                <div class="sv-promo-card sv-promo-large" data-sv-aos="fade-right">
-                    <div class="sv-promo-content">
-                        <span class="sv-promo-tag">New Collection</span>
-                        <h2>Summer Fashion</h2>
-                        <p>Up to 50% Off on selected items</p>
-                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-primary">Shop Now <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)"></div>
-                </div>
-                <div class="sv-promo-card sv-promo-small" data-sv-aos="fade-left" data-sv-aos-delay="100">
-                    <div class="sv-promo-content">
-                        <span class="sv-promo-tag">Limited Offer</span>
-                        <h3>Gadgets & Electronics</h3>
-                        <p>Starting from ₹499</p>
-                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-outline sv-btn-sm" style="color:#fff;border-color:#fff;">Explore</a>
-                    </div>
-                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"></div>
-                </div>
-                <div class="sv-promo-card sv-promo-small" data-sv-aos="fade-left" data-sv-aos-delay="200">
-                    <div class="sv-promo-content">
-                        <span class="sv-promo-tag">Weekend Deal</span>
-                        <h3>Home & Kitchen</h3>
-                        <p>Flat 30% Off</p>
-                        <a href="{% url 'store:product_list' %}" class="sv-btn sv-btn-outline sv-btn-sm" style="color:#fff;border-color:#fff;">Shop Now</a>
-                    </div>
-                    <div class="sv-promo-bg" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"></div>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Featured Products -->
     <section class="sv-featured-products" id="featured">
@@ -370,8 +189,6 @@
                     <div class="sv-product-image">
                         {% if product.image %}
                         <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
-                        {% else %}
-                        <img src="https://images.unsplash.com/photo-1546868871-af0de0ae72be?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
                         {% endif %}
                         <div class="sv-product-actions">
                             <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="Quick View"><i class="fas fa-eye"></i></a>
@@ -387,16 +204,6 @@
                         <h3 class="sv-product-title">
                             <a href="{{ product.get_absolute_url }}" style="color:inherit;text-decoration:none;">{{ product.name }}</a>
                         </h3>
-                        <div class="sv-product-rating">
-                            <div class="sv-stars">
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                            </div>
-                            <span class="sv-rating-count">Top Rated</span>
-                        </div>
                         <div class="sv-product-price">
                             <span class="sv-current-price">{{ product.get_price|inr }}</span>
                             {% if product.has_discount %}
@@ -406,47 +213,6 @@
                     </div>
                 </div>
                 {% endfor %}
-            </div>
-        </div>
-    </section>
-
-    <!-- Special Offer Banner -->
-    <section class="sv-special-offer" data-sv-aos="zoom-in">
-        <div class="container">
-            <div class="sv-offer-content">
-                <div class="sv-offer-text">
-                    <span class="sv-offer-tag">{% if special_offer_timer %}Limited Time Offer{% else %}Storewide Deals{% endif %}</span>
-                    <h2>Super Sale <span class="sv-gradient-text">{% if max_discount %}{{ max_discount }}% OFF{% else %}Great Savings{% endif %}</span></h2>
-                    <p>Browse verified discounts across our catalog while stock lasts. Free shipping on orders above ₹999!</p>
-                    {% if special_offer_timer %}
-                    <div class="sv-offer-timer{% if special_offer_timer.expired %} sv-timer-ended{% endif %}" data-offer-deadline="{{ special_offer_timer.iso }}" data-countdown-state="{% if special_offer_timer.expired %}expired{% else %}active{% endif %}">
-                        <span class="sv-offer-status"{% if not special_offer_timer.expired %} hidden{% endif %}>Offer ended</span>
-                        <div class="sv-offer-timer-boxes d-flex gap-3"{% if special_offer_timer.expired %} hidden{% endif %}>
-                            <div class="sv-offer-timer-box">
-                                <span class="sv-offer-days">{{ special_offer_timer.days }}</span>
-                                <small>Days</small>
-                            </div>
-                            <div class="sv-offer-timer-box">
-                                <span class="sv-offer-hrs">{{ special_offer_timer.hours }}</span>
-                                <small>Hours</small>
-                            </div>
-                            <div class="sv-offer-timer-box">
-                                <span class="sv-offer-mins">{{ special_offer_timer.minutes }}</span>
-                                <small>Mins</small>
-                            </div>
-                            <div class="sv-offer-timer-box">
-                                <span class="sv-offer-secs">{{ special_offer_timer.seconds }}</span>
-                                <small>Secs</small>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                    <a href="{% url 'store:deals' %}" class="sv-btn sv-btn-primary sv-btn-lg sv-glow-btn">Grab The Deal <i class="fas fa-arrow-right"></i></a>
-                </div>
-                <div class="sv-offer-visual">
-                    <div class="sv-offer-circle"></div>
-                    <div class="sv-offer-percent">{% if max_discount %}{{ max_discount }}{% else %}SALE{% endif %}<span>{% if max_discount %}%{% endif %}</span></div>
-                </div>
             </div>
         </div>
     </section>
@@ -471,8 +237,6 @@
                     <div class="sv-product-image">
                         {% if product.image %}
                         <img src="{{ product.image.url }}" alt="{{ product.name }}" loading="lazy">
-                        {% else %}
-                        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop" alt="{{ product.name }}" loading="lazy">
                         {% endif %}
                         <div class="sv-product-actions">
                             <a href="{{ product.get_absolute_url }}" class="sv-action-btn" title="View"><i class="fas fa-eye"></i></a>
@@ -501,87 +265,6 @@
         </div>
     </section>
     {% endfor %}
-
-    <!-- Brands Section -->
-    <section class="sv-brands-section">
-        <div class="container">
-            <div class="sv-section-header sv-centered">
-                <span class="sv-section-subtitle">Our Partners</span>
-                <h2 class="sv-section-title">Top Brands</h2>
-            </div>
-            <div class="sv-brands-slider">
-                <div class="sv-brands-track">
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-apple"></i><span>Apple</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-samsung"></i><span>Samsung</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-google"></i><span>Google</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-microsoft"></i><span>Microsoft</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-amazon"></i><span>Amazon</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-spotify"></i><span>Spotify</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-apple"></i><span>Apple</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-samsung"></i><span>Samsung</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-google"></i><span>Google</span></div></div>
-                    <div class="sv-brand-item"><div class="sv-brand-logo"><i class="fab fa-microsoft"></i><span>Microsoft</span></div></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Testimonials -->
-    <section class="sv-testimonials">
-        <div class="container">
-            <div class="sv-section-header sv-centered">
-                <span class="sv-section-subtitle">What People Say</span>
-                <h2 class="sv-section-title">Customer Reviews</h2>
-            </div>
-            <div class="sv-testimonials-grid">
-                <div class="sv-testimonial-card" data-sv-aos="fade-up">
-                    <div class="sv-testimonial-stars">
-                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
-                    </div>
-                    <p class="sv-testimonial-text">"Amazing shopping experience! The delivery was super fast and the product quality exceeded my expectations. Will definitely shop again!"</p>
-                    <div class="sv-testimonial-author">
-                        <div class="sv-author-avatar">
-                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User" loading="lazy">
-                        </div>
-                        <div class="sv-author-info">
-                            <h4>Sarah Johnson</h4>
-                            <span>Verified Buyer</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="sv-testimonial-card" data-sv-aos="fade-up" data-sv-aos-delay="100">
-                    <div class="sv-testimonial-stars">
-                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
-                    </div>
-                    <p class="sv-testimonial-text">"Great prices and excellent customer service. The return process was hassle-free. This is now my go-to online store for everything!"</p>
-                    <div class="sv-testimonial-author">
-                        <div class="sv-author-avatar">
-                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="User" loading="lazy">
-                        </div>
-                        <div class="sv-author-info">
-                            <h4>Mike Chen</h4>
-                            <span>Verified Buyer</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="sv-testimonial-card" data-sv-aos="fade-up" data-sv-aos-delay="200">
-                    <div class="sv-testimonial-stars">
-                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i>
-                    </div>
-                    <p class="sv-testimonial-text">"The variety of products available is incredible. I found everything I needed at competitive prices. The app is also very user-friendly!"</p>
-                    <div class="sv-testimonial-author">
-                        <div class="sv-author-avatar">
-                            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop" alt="User" loading="lazy">
-                        </div>
-                        <div class="sv-author-info">
-                            <h4>Emily Davis</h4>
-                            <span>Verified Buyer</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Newsletter -->
     <section class="sv-newsletter">

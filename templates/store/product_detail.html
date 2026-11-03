@@ -74,19 +74,11 @@
                     {% endif %}
                 {% endif %}
 
-                <div class="pd-perks">
-                    <div class="pd-perk"><i class="bi bi-truck"></i><span><b>Free shipping</b><small>On orders above ₹999</small></span></div>
-                    <div class="pd-perk"><i class="bi bi-arrow-repeat"></i><span><b>30-day returns</b><small>Easy, no questions</small></span></div>
-                    <div class="pd-perk"><i class="bi bi-shield-check"></i><span><b>Secure checkout</b><small>Encrypted ordering</small></span></div>
-                    <div class="pd-perk"><i class="bi bi-patch-check"></i><span><b>Genuine product</b><small>Quality checked</small></span></div>
-                </div>
-
                 <table class="meta-table">
                     <tbody>
                         <tr><td>SKU</td><td>{{ product.slug }}</td></tr>
                         {% if product.category %}<tr><td>Category</td><td>{{ product.category.name }}</td></tr>{% endif %}
                         <tr><td>Availability</td><td>{% if product.is_in_stock %}In stock ({{ product.stock_quantity }}){% else %}Sold out{% endif %}</td></tr>
-                        <tr><td>Delivery</td><td>Ships within 1–2 business days</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -110,7 +102,6 @@
                         <tr><td>Price</td><td>{{ product.get_price|inr }}{% if product.has_discount %} <s class="text-muted">{{ product.price|inr }}</s>{% endif %}</td></tr>
                         <tr><td>Stock</td><td>{% if product.is_in_stock %}{{ product.stock_quantity }} units{% else %}Out of stock{% endif %}</td></tr>
                         <tr><td>Listed</td><td>{{ product.created_at|date:'M j, Y' }}</td></tr>
-                        <tr><td>Warranty</td><td>As per brand policy</td></tr>
                     </tbody>
                 </table>
             </div>

@@ -186,7 +186,6 @@
             saveNote.textContent = "You save " + money(savings) + " on this order";
         }
 
-        setText("[data-cart-shipping]", current.shipping_label);
         setText("[data-cart-total]", money(current.cart_total));
 
         // The hero sits above the cart section, outside [data-cart-page].
