@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Northstar Store — premium electronics, gaming gear and accessories at better prices. Ships across India.">
+    <meta name="description" content="Northstar Store — premium electronics, gaming gear and accessories at better prices.">
     <title>{% block title %}Northstar Store{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='32' y2='32'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M16 5l2.7 8.3L27 16l-8.3 2.7L16 27l-2.7-8.3L5 16l8.3-2.7z' fill='%23fff'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,13 +20,6 @@
 </head>
 <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-
-    <div class="top-strip" aria-hidden="false">
-        <div class="container d-flex align-items-center justify-content-between gap-3">
-            <span class="top-strip-msg"><i class="bi bi-truck me-1"></i>Free shipping on orders above ₹999<span class="d-none d-sm-inline"> &nbsp;·&nbsp; Easy 30-day returns</span></span>
-            <span class="top-strip-msg d-none d-md-inline"><i class="bi bi-shield-lock me-1"></i>100% secure checkout</span>
-        </div>
-    </div>
 
     {% include 'store/includes/navbar.html' %}
 
@@ -52,12 +45,6 @@
                         <span class="brand-mark"><i class="bi bi-stars"></i></span>
                         <span class="brand-word">Northstar<em>Store</em></span>
                     </a>
-                    <p class="footer-copy">Premium electronics, gaming gear and everyday tech — hand-picked, honestly priced and delivered fast across India.</p>
-                    <div class="footer-chips">
-                        <span class="footer-chip"><i class="bi bi-shield-check"></i>Secure checkout</span>
-                        <span class="footer-chip"><i class="bi bi-truck"></i>Fast delivery</span>
-                        <span class="footer-chip"><i class="bi bi-arrow-repeat"></i>30-day returns</span>
-                    </div>
                 </div>
                 <nav class="footer-col" aria-label="Shop links">
                     <h6 class="footer-heading">Shop</h6>
@@ -82,15 +69,12 @@
                 </nav>
                 <nav class="footer-col" aria-label="Help links">
                     <h6 class="footer-heading">Help</h6>
-                    <a href="{% url 'store:info_page' 'shipping' %}">Shipping</a>
-                    <a href="{% url 'store:info_page' 'returns' %}">Returns</a>
                     <a href="{% url 'store:info_page' 'privacy' %}">Privacy policy</a>
                     <a href="{% url 'store:info_page' 'terms' %}">Terms of service</a>
                 </nav>
             </div>
             <div class="footer-bottom">
                 <span>© {% now "Y" %} Northstar Store. All rights reserved.</span>
-                <span class="d-none d-sm-inline">Genuine products · Honest prices · Made for India</span>
             </div>
         </div>
     </footer>

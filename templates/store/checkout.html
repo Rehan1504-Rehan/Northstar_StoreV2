@@ -73,7 +73,6 @@
                 {% if cart_savings > 0 %}
                     <div class="summary-row summary-saving"><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span>−{{ cart_savings|inr }}</span></div>
                 {% endif %}
-                <div class="summary-row"><span>Shipping</span><span class="summary-free">{% if cart_total > 999 %}FREE{% else %}Calculated later{% endif %}</span></div>
                 <hr class="summary-divider">
                 <div class="summary-total"><span>Total</span><strong>{{ cart_total|inr }}</strong></div>
                 <p class="summary-foot"><i class="bi bi-info-circle me-1"></i>Your price is locked when the order is placed.</p>

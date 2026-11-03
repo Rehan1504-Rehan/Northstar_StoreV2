@@ -69,7 +69,6 @@
                     <h2 class="summary-title">Order summary</h2>
                     <div class="summary-row"><span data-cart-subtotal-label>Subtotal ({{ item_count }} item{{ item_count|pluralize }})</span><span data-cart-subtotal>{{ cart_regular_total|inr }}</span></div>
                     <div class="summary-row summary-saving" data-cart-savings-row{% if not cart_savings %} hidden{% endif %}><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span data-cart-savings>−{{ cart_savings|inr }}</span></div>
-                    <div class="summary-row"><span>Shipping</span><span class="summary-free" data-cart-shipping>{% if cart_total > 999 %}FREE{% else %}Calculated at checkout{% endif %}</span></div>
                     <hr class="summary-divider">
                     <div class="summary-total"><span>Total</span><strong data-cart-total>{{ cart_total|inr }}</strong></div>
                     <p class="summary-save-note" data-cart-save-note{% if not cart_savings %} hidden{% endif %}>You save {{ cart_savings|inr }} on this order</p>
@@ -77,7 +76,6 @@
                     {% if not user.is_authenticated %}
                         <p class="summary-foot"><i class="bi bi-person-check me-1"></i>Have an account? <a href="{% url 'store:login' %}?next={% url 'store:cart' %}">Sign in</a> to merge your saved cart</p>
                     {% endif %}
-                    <p class="summary-foot"><i class="bi bi-shield-lock me-1"></i>Secure checkout — prices include all offers</p>
                 </div>
             </div>
         </div>

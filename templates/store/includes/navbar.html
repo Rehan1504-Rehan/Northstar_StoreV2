@@ -12,7 +12,7 @@
 
         <form class="header-search d-none d-lg-flex" method="get" action="{% url 'store:product_list' %}" role="search">
             <label class="visually-hidden" for="headerSearch">Search products</label>
-            <input id="headerSearch" class="header-search-input" type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search for products, brands and more" aria-label="Search products">
+            <input id="headerSearch" class="header-search-input" type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search for products" aria-label="Search products">
             <button class="header-search-btn" type="submit" aria-label="Search"><i class="bi bi-search"></i></button>
         </form>
 
@@ -57,7 +57,7 @@
         <div class="container">
             <form class="header-search" method="get" action="{% url 'store:product_list' %}" role="search">
                 <label class="visually-hidden" for="headerSearchMobile">Search products</label>
-                <input id="headerSearchMobile" class="header-search-input" type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search for products, brands and more" aria-label="Search products" autocomplete="off">
+                <input id="headerSearchMobile" class="header-search-input" type="search" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Search for products" aria-label="Search products" autocomplete="off">
                 <button class="header-search-btn" type="submit" aria-label="Search"><i class="bi bi-search"></i></button>
             </form>
         </div>
