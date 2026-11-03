@@ -228,6 +228,41 @@ In Admin, open **Products** to change prices, discount prices, descriptions, cat
 
 To cancel an order as staff, select it in the **Orders** list and run the **Cancel selected orders and restock items** action. That action calls the same code path the storefront uses, so the units go back into stock and `cancelled_at` is recorded. Editing the `status` field to *Cancelled* by hand changes the label only — it does not return stock.
 
+## Cart updates without a page reload
+
+The cart page is fully asynchronous. Clicking **+**, **−** or **Remove** sends a
+small POST to a JSON endpoint and repaints only the figures that changed — the
+quantity, the line subtotal, the summary rows, the total and the header badge.
+The page itself, its images and the scroll position stay exactly where they are.
+
+| Endpoint | Purpose | Response |
+| --- | --- | --- |
+| `POST /cart/update/<item_id>/` | Set a quantity (`quantity=3`) or step it by one (`delta=1`) | `ok`, `message`, `cart_count`, `cart`, `item` |
+| `POST /cart/remove/<item_id>/` | Remove a line | `ok`, `message`, `cart_count`, `cart`, `removed` |
+
+For guests the item id is the product id, matching the session cart the
+storefront has always used.
+
+`cart` always carries everything the page displays: `item_count`,
+`line_count`, `cart_total`, `cart_regular_total`, `cart_savings`,
+`shipping_free`, `shipping_label`, `items` (quantity, unit price, list price,
+subtotal and stock per line) and `line_ids`. Prices and totals are recomputed
+from the database on every call — nothing the browser sends is trusted.
+
+- Both endpoints require the CSRF token and only ever touch the caller's own
+  cart: the database cart for signed-in shoppers, the session cart for guests.
+- Quantities are validated on the server. Negative, fractional or non-numeric
+  values, quantities above stock and unavailable products are refused with a
+  `400` and a message; another shopper's line returns `404`.
+- Rapid clicks are debounced per line and serialised. Once a request is in
+  flight, further taps are coalesced into a single follow-up request carrying
+  the final quantity, so the cart cannot be sent backwards or double-counted.
+- The controls stay real POST forms, so the cart still works with JavaScript
+  disabled (it falls back to the ordinary page reload).
+- Local CSS/JS URLs are versioned with `ASSET_VERSION`. Bump that setting (or
+  set the environment variable) whenever static assets change, so a returning
+  browser fetches the new script instead of a cached copy.
+
 ## Cancelling orders
 
 Customers and staff share one cancellation routine (`Order.cancel()`), so both routes behave identically:

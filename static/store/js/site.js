@@ -234,7 +234,13 @@ document.addEventListener("DOMContentLoaded", () => {
         form.addEventListener("submit", (event) => {
             const submitter = event.submitter;
             if (!submitter || submitter.type !== "submit" || submitter.dataset.noLoading) return;
-            if (submitter.classList.contains("quantity-button")) return;
+            // Cart controls manage their own busy state in cart.js.
+            if (
+                submitter.classList.contains("quantity-button") ||
+                submitter.matches("[data-cart-remove]")
+            ) {
+                return;
+            }
             submitter.classList.add("is-loading");
             submitter.style.pointerEvents = "none";
             window.setTimeout(() => {
@@ -254,14 +260,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 6500);
 });
 
-// Cart forms (add / update / remove) use the same POST/CSRF protection as a
-// normal submit, but with JavaScript we keep the shopper on the page and refresh
-// only the parts that change.
-const CART_FORM_SELECTOR =
-    'form[action*="/cart/add/"], form[action*="/cart/update/"], form[action*="/cart/remove/"]';
+// "Add to cart" forms use the same POST/CSRF protection as a normal submit, but
+// with JavaScript we keep the shopper on the page and refresh only the counter
+// in the header. Quantity changes and removals on the cart page itself are
+// handled by cart.js, which talks to the same JSON endpoints without ever
+// re-downloading the page.
+const CART_ADD_FORM_SELECTOR = 'form[action*="/cart/add/"]';
 
 document.addEventListener("submit", async (event) => {
-    const form = event.target.closest ? event.target.closest(CART_FORM_SELECTOR) : null;
+    const form = event.target.closest ? event.target.closest(CART_ADD_FORM_SELECTOR) : null;
     if (!form || event.submitter?.name === "buy_now") return;
     // Ignore double clicks / double submits while a request is in flight.
     if (form.dataset.submitting === "1") {
@@ -273,9 +280,8 @@ document.addEventListener("submit", async (event) => {
     const submitter = event.submitter || form.querySelector('button[type="submit"]');
 
     // Build the payload BEFORE the button is disabled: browsers leave a disabled
-    // submit button out of FormData. The quantity steppers carry the new amount
-    // on the button itself (name="quantity"), so disabling first silently sent a
-    // post without any quantity and the server treated it as "remove the line".
+    // submit button out of FormData, and these forms carry an optional quantity
+    // on the button itself.
     const payload = new FormData(form);
     if (submitter && submitter.name) {
         payload.set(submitter.name, submitter.value);
@@ -284,6 +290,8 @@ document.addEventListener("submit", async (event) => {
     form.dataset.submitting = "1";
     if (submitter) submitter.disabled = true;
     try {
+        // Same-origin fetch: the CSRF token travels in the form data and the
+        // session cookie decides whose cart is being changed.
         const response = await fetch(form.action, {
             method: "POST",
             body: payload,
@@ -294,11 +302,7 @@ document.addEventListener("submit", async (event) => {
         if (!response.ok || !result.ok) {
             throw new Error(result.message || "We could not update your cart. Please try again.");
         }
-
         updateCartBadge(result.cart_count);
-        if (form.action.includes("/cart/update/") || form.action.includes("/cart/remove/")) {
-            await refreshCartPanel();
-        }
         showCartNotice(result.message, false);
     } catch (error) {
         showCartNotice(error.message || "We could not update your cart. Please try again.", true);
@@ -307,32 +311,6 @@ document.addEventListener("submit", async (event) => {
         if (submitter) submitter.disabled = false;
     }
 });
-
-// Re-render the cart section (lines, totals and summary) from a fresh copy of
-// the page, without touching the header, the footer or the scroll position.
-async function refreshCartPanel() {
-    const response = await fetch(window.location.href, {
-        credentials: "same-origin",
-        headers: { "X-Requested-With": "XMLHttpRequest" },
-    });
-    if (!response.ok) return;
-
-    const nextDocument = new DOMParser().parseFromString(await response.text(), "text/html");
-    const currentSection = document.querySelector("main .section-block");
-    const nextSection = nextDocument.querySelector("main .section-block");
-    if (currentSection && nextSection) {
-        currentSection.innerHTML = nextSection.innerHTML;
-        // Swapped-in markup has not been through the page load enhancers yet:
-        // without this the [data-reveal] wrappers stay at opacity 0 (invisible
-        // cart) and images lose their broken-image fallback.
-        currentSection.querySelectorAll("[data-reveal]").forEach((el) => el.classList.add("in"));
-        bindImageFallbacks(currentSection);
-    }
-
-    const currentHero = document.querySelector(".page-hero-sub");
-    const nextHero = nextDocument.querySelector(".page-hero-sub");
-    if (currentHero && nextHero) currentHero.textContent = nextHero.textContent;
-}
 
 function bindImageFallbacks(root) {
     const swapToPlaceholder = (img) => {
@@ -394,3 +372,11 @@ function showCartNotice(message, isError) {
     stack.replaceChildren(alert);
     window.setTimeout(() => alert.remove(), 4000);
 }
+
+// Shared storefront helpers. cart.js (loaded on the cart page only) reuses these
+// so the header badge and the toast styling stay identical everywhere.
+window.NorthstarStore = Object.assign(window.NorthstarStore || {}, {
+    updateCartBadge,
+    showCartNotice,
+    bindImageFallbacks,
+});

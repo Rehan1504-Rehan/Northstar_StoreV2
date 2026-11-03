@@ -10,8 +10,10 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.db import connection
 from django.template.defaultfilters import date as date_filter
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from ecommerce.startup import run_startup_tasks
@@ -1852,3 +1854,233 @@ class SmartMatchTests(TestCase):
         self.assertContains(invalid, "Please choose one of the available category options.")
 
 
+
+
+class CartAjaxTests(TestCase):
+    """Feature: the cart page updates quantities without reloading.
+
+    The JSON endpoints must return every figure the page displays, keep the
+    existing POST behaviour for JavaScript-less browsers, and refuse anything
+    the server cannot trust (negative quantities, foreign cart lines).
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="ajax-shopper",
+            email="ajax@example.com",
+            password="Strong-password-123",
+        )
+        self.category = Category.objects.create(name="Audio", description="Headphones")
+        self.headphones = Product.objects.create(
+            name="Studio Headphones",
+            description="Wired studio headphones.",
+            price=Decimal("3500.00"),
+            discount_price=Decimal("3000.00"),
+            category=self.category,
+            stock_quantity=5,
+            available=True,
+        )
+        self.cable = Product.objects.create(
+            name="Braided Cable",
+            description="A fast charging cable.",
+            price=Decimal("500.00"),
+            category=self.category,
+            stock_quantity=4,
+            available=True,
+        )
+        self.cart = Cart.objects.create(user=self.user)
+        self.line = CartItem.objects.create(
+            cart=self.cart, product=self.headphones, quantity=1
+        )
+        self.other_line = CartItem.objects.create(
+            cart=self.cart, product=self.cable, quantity=2
+        )
+
+    def ajax_post(self, url, data):
+        return self.client.post(url, data, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+
+    def test_update_returns_every_figure_the_cart_page_shows(self):
+        self.client.force_login(self.user)
+        response = self.ajax_post(
+            reverse("store:update_cart", args=[self.line.pk]), {"quantity": 2}
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["item"]["quantity"], 2)
+        self.assertEqual(payload["cart_count"], 4)
+
+        state = payload["cart"]
+        self.assertEqual(state["items"][str(self.line.pk)]["quantity"], 2)
+        self.assertEqual(state["items"][str(self.line.pk)]["subtotal"], "6000.00")
+        # 2 × 3000.00 headphones + 2 × 500.00 cables
+        self.assertEqual(state["cart_total"], "7000.00")
+        # The same lines at list price: 2 × 3500.00 + 2 × 500.00
+        self.assertEqual(state["cart_regular_total"], "8000.00")
+        self.assertEqual(state["cart_savings"], "1000.00")
+        self.assertEqual(state["item_count"], 4)
+        self.assertEqual(state["line_count"], 2)
+        self.assertTrue(state["shipping_free"])
+        self.assertEqual(state["shipping_label"], "FREE")
+        self.assertFalse(state["is_empty"])
+        self.assertEqual(sorted(state["line_ids"]), sorted([self.line.pk, self.other_line.pk]))
+
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 2)
+
+    def test_delta_mode_moves_from_the_stored_quantity(self):
+        self.client.force_login(self.user)
+        url = reverse("store:update_cart", args=[self.line.pk])
+
+        first = self.ajax_post(url, {"delta": 1})
+        second = self.ajax_post(url, {"delta": 1})
+        back = self.ajax_post(url, {"delta": -1})
+
+        self.assertEqual(first.json()["item"]["quantity"], 2)
+        self.assertEqual(second.json()["item"]["quantity"], 3)
+        self.assertEqual(back.json()["item"]["quantity"], 2)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 2)
+
+    def test_negative_quantity_is_rejected_and_nothing_changes(self):
+        self.client.force_login(self.user)
+        response = self.ajax_post(
+            reverse("store:update_cart", args=[self.line.pk]), {"quantity": -3}
+        )
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("negative", payload["message"].lower())
+        # The error reply still carries the cart so the browser can resync.
+        self.assertEqual(payload["cart"]["items"][str(self.line.pk)]["quantity"], 1)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 1)
+
+    def test_absurd_delta_and_fractional_quantity_are_rejected(self):
+        self.client.force_login(self.user)
+        url = reverse("store:update_cart", args=[self.line.pk])
+
+        self.assertEqual(self.ajax_post(url, {"delta": 500}).status_code, 400)
+        self.assertEqual(self.ajax_post(url, {"delta": 0}).status_code, 400)
+        self.assertEqual(self.ajax_post(url, {"quantity": "1.5"}).status_code, 400)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 1)
+
+    def test_quantity_over_stock_is_refused_with_the_stock_message(self):
+        self.client.force_login(self.user)
+        response = self.ajax_post(
+            reverse("store:update_cart", args=[self.line.pk]), {"quantity": 99}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("5", response.json()["message"])
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 1)
+
+    def test_another_shoppers_cart_line_cannot_be_touched(self):
+        intruder = User.objects.create_user(username="intruder", password="Other-pass-123")
+        self.client.force_login(intruder)
+
+        update = self.ajax_post(
+            reverse("store:update_cart", args=[self.line.pk]), {"quantity": 2}
+        )
+        remove = self.ajax_post(
+            reverse("store:remove_from_cart", args=[self.line.pk]), {}
+        )
+
+        self.assertEqual(update.status_code, 404)
+        self.assertEqual(remove.status_code, 404)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 1)
+
+    def test_csrf_token_is_required_for_ajax_updates(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        response = csrf_client.post(
+            reverse("store:update_cart", args=[self.line.pk]),
+            {"quantity": 2},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.quantity, 1)
+
+    def test_remove_returns_the_new_state_and_marks_the_cart_empty(self):
+        self.client.force_login(self.user)
+        for line in (self.line, self.other_line):
+            response = self.ajax_post(
+                reverse("store:remove_from_cart", args=[line.pk]), {}
+            )
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["removed"])
+
+        state = response.json()["cart"]
+        self.assertEqual(state["item_count"], 0)
+        self.assertEqual(state["cart_total"], "0.00")
+        self.assertTrue(state["is_empty"])
+        self.assertEqual(response.json()["cart_count"], 0)
+
+    def test_guest_ajax_updates_use_database_prices(self):
+        guest = Client()
+        guest.post(
+            reverse("store:add_to_cart", args=[self.headphones.pk]), {"quantity": 1}
+        )
+        response = guest.post(
+            reverse("store:update_cart", args=[self.headphones.pk]),
+            {"quantity": 2, "price": "1.00"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        state = response.json()["cart"]
+        self.assertEqual(state["items"][str(self.headphones.pk)]["unit_price"], "3000.00")
+        self.assertEqual(state["cart_total"], "6000.00")
+        self.assertEqual(state["item_count"], 2)
+
+        # The session cart is what persists for the next page load.
+        page = guest.get(reverse("store:cart"))
+        self.assertContains(page, "Studio Headphones")
+        self.assertEqual(page.context["cart_total"], Decimal("6000.00"))
+
+    def test_cart_page_renders_the_state_snapshot_and_async_hooks(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("store:cart"))
+
+        self.assertContains(response, 'id="cart-state"')
+        self.assertContains(response, "data-cart-line")
+        self.assertContains(response, "data-line-quantity")
+        self.assertContains(response, "data-cart-step=\"1\"")
+        self.assertContains(response, "data-cart-remove")
+        self.assertContains(response, "data-cart-total")
+        self.assertContains(response, "cart.js")
+        self.assertEqual(response.context["item_count"], 3)
+        self.assertEqual(response.context["cart_count"], 3)
+
+    def test_cart_page_query_count_does_not_grow_with_more_lines(self):
+        """No per-line (or per-render) database lookups.
+
+        ``{{ cart.item_count }}`` used to run a query every time it appeared in
+        the template, so the page got slower with every extra product. The
+        number of queries for one line and for four must be identical.
+        """
+        self.client.force_login(self.user)
+        with CaptureQueriesContext(connection) as one_line:
+            self.client.get(reverse("store:cart"))
+
+        for index in range(3):
+            product = Product.objects.create(
+                name=f"Extra Gadget {index}",
+                description="Another cart line.",
+                price=Decimal("100.00"),
+                category=self.category,
+                stock_quantity=5,
+                available=True,
+            )
+            CartItem.objects.create(cart=self.cart, product=product, quantity=1)
+
+        with CaptureQueriesContext(connection) as four_lines:
+            response = self.client.get(reverse("store:cart"))
+
+        self.assertEqual(response.context["line_count"], 5)
+        self.assertEqual(len(one_line), len(four_lines))

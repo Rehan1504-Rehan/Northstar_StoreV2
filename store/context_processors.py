@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import DatabaseError
 from django.db.models import Count, Q, Sum
 
@@ -6,23 +7,25 @@ from .models import Cart, Category, Product
 
 def cart_context(request):
     """Expose a small cart badge count to every page for signed-in and guest shoppers."""
-    cart_count = 0
-    if request.user.is_authenticated:
-        try:
-            cart_count = (
-                Cart.objects.filter(user=request.user)
-                .aggregate(total=Sum("items__quantity"))
-                .get("total")
-                or 0
-            )
-        except DatabaseError:
-            # Do not turn a friendly 500/maintenance page into another error
-            # when the database is temporarily unavailable.
-            cart_count = 0
-    else:
-        from .views import get_guest_cart_count
+    cart_count = getattr(request, "_cart_item_count", None)
+    if cart_count is None:
+        cart_count = 0
+        if request.user.is_authenticated:
+            try:
+                cart_count = (
+                    Cart.objects.filter(user=request.user)
+                    .aggregate(total=Sum("items__quantity"))
+                    .get("total")
+                    or 0
+                )
+            except DatabaseError:
+                # Do not turn a friendly 500/maintenance page into another error
+                # when the database is temporarily unavailable.
+                cart_count = 0
+        else:
+            from .views import get_guest_cart_count
 
-        cart_count = get_guest_cart_count(request)
+            cart_count = get_guest_cart_count(request)
     return {"cart_count": cart_count}
 
 
@@ -53,4 +56,7 @@ def storefront_context(request):
     return {
         "nav_categories": nav_categories,
         "deals_available": deals_available,
+        # Static assets are not fingerprinted, so the version query string is
+        # what tells a returning browser to download the updated cart scripts.
+        "asset_version": getattr(settings, "ASSET_VERSION", ""),
     }

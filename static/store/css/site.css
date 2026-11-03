@@ -1423,6 +1423,24 @@ html.nav-lock, body.nav-lock {
 .cart-item-total-label { color: var(--muted-2); font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
 .cart-item-total strong { font-family: var(--font-display); font-size: 1.05rem; }
 
+/* Async cart feedback. The stepper itself never changes shape: a spinner
+   appears beside it while a request is in flight, the row dims slightly while a
+   removal is on its way, and a changed figure gets one soft highlight. */
+.cart-line-status { align-items: center; display: inline-flex; min-height: 20px; min-width: 0; }
+.cart-line-status .spinner-border { border-width: 2px; height: 14px; width: 14px; }
+.cart-item.is-busy { background: #fbfbff; }
+.cart-item.is-busy .quantity-control { opacity: .8; }
+.cart-item.is-removing { opacity: .45; transition: opacity .18s ease; }
+.cart-item.is-removing .quantity-control,
+.cart-item.is-removing .remove-link { pointer-events: none; }
+.value-pulse { animation: cartValuePulse .7s ease; }
+@keyframes cartValuePulse {
+    0% { background: var(--accent-soft); border-radius: 6px; }
+    100% { background: transparent; }
+}
+[data-cart-layout][hidden],
+#cartEmptyState[hidden] { display: none !important; }
+
 /* ---------- Forms & auth ---------- */
 
 .form-label { font-size: .8rem; font-weight: 700; margin-bottom: .35rem; }
