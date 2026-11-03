@@ -13,7 +13,7 @@ from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.base import File
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, FloatField, Prefetch, Q, Value
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, FloatField, Prefetch, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.dispatch import receiver
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -1130,7 +1130,168 @@ def _cart_totals(items):
         "cart_total": total,
         "cart_regular_total": regular_total,
         "cart_savings": regular_total - total,
+        # Counted once here so the template and the JSON payload never have to
+        # walk the cart a second time (``{{ cart.item_count }}`` used to hit the
+        # database from inside the template, several times per page).
+        "item_count": sum(int(item.quantity) for item in items),
+        "line_count": len(items),
     }
+
+
+def _money(value) -> str:
+    """Render a Decimal as a plain two-decimal string for JSON responses."""
+    return str(Decimal(value or 0).quantize(Decimal("0.01")))
+
+
+def _cart_payload(items) -> dict:
+    """A complete, JSON-safe snapshot of the shopper's cart.
+
+    The AJAX endpoints return this after every change, so the browser can
+    update one quantity, one subtotal and the summary figures in place. Nothing
+    here is trusted from the client: prices, stock and totals are all read from
+    the database.
+    """
+    totals = _cart_totals(items)
+    items_by_id = {}
+    for item in items:
+        product = item.product
+        quantity = int(item.quantity)
+        unit_price = product.get_price()
+        items_by_id[str(item.pk)] = {
+            "id": item.pk,
+            "product_id": product.pk,
+            "quantity": quantity,
+            "unit_price": _money(unit_price),
+            "list_price": _money(product.price),
+            "subtotal": _money(unit_price * quantity),
+            "stock": int(product.stock_quantity),
+            "available": bool(product.available),
+        }
+
+    # Free shipping is advertised on the summary card above ₹999. Nothing else
+    # (taxes or a shipping fee) is charged, so the grand total is the cart
+    # total — the same rule the cart template has always used.
+    shipping_free = totals["cart_total"] > Decimal("999")
+    return {
+        "cart_total": _money(totals["cart_total"]),
+        "cart_regular_total": _money(totals["cart_regular_total"]),
+        "cart_savings": _money(totals["cart_savings"]),
+        "item_count": totals["item_count"],
+        "line_count": totals["line_count"],
+        "shipping_free": shipping_free,
+        "shipping_label": "FREE" if shipping_free else "Calculated at checkout",
+        "is_empty": totals["line_count"] == 0,
+        "items": items_by_id,
+        "line_ids": [line["id"] for line in items_by_id.values()],
+    }
+
+
+def _current_cart_items(request: HttpRequest):
+    """Every line in the caller's cart, with its product, in one query."""
+    if request.user.is_authenticated:
+        return list(
+            CartItem.objects.filter(cart__user=request.user).select_related("product")
+        )
+    _, items = _get_guest_cart_and_items(request)
+    return items
+
+
+def _wants_json(request: HttpRequest) -> bool:
+    """True for the fetch() calls made by the storefront JavaScript."""
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
+
+
+def _cart_json(
+    request: HttpRequest,
+    *,
+    ok: bool,
+    message: str,
+    status: int = 200,
+    item: dict | None = None,
+    removed: bool = False,
+    cart: dict | None = None,
+) -> JsonResponse:
+    """Build the JSON reply shared by every AJAX cart endpoint.
+
+    ``cart_count`` is kept at the top level because the header badge and the
+    add-to-cart script have always read it from there.
+    """
+    if cart is None:
+        cart = _cart_payload(_current_cart_items(request))
+    payload = {
+        "ok": ok,
+        "message": message,
+        "cart_count": cart["item_count"],
+        "cart": cart,
+    }
+    if item is not None:
+        payload["item"] = item
+    if removed:
+        payload["removed"] = True
+    return JsonResponse(payload, status=status)
+
+
+def _cart_error(
+    request: HttpRequest,
+    message: str,
+    *,
+    status: int = 400,
+    cart: dict | None = None,
+) -> HttpResponse:
+    """Reject an invalid change without ever persisting a negative quantity."""
+    if _wants_json(request):
+        return _cart_json(request, ok=False, message=message, status=status, cart=cart)
+    messages.error(request, message)
+    return redirect("store:cart")
+
+
+def _missing_cart_item(request: HttpRequest, message: str) -> HttpResponse:
+    """A line that is not in the caller's cart.
+
+    Browsers get a JSON 404 carrying the real cart state, so a tab that is out
+    of date (the line was removed elsewhere) repairs itself instead of showing
+    an error it cannot recover from. Everything else gets the usual 404.
+    """
+    if _wants_json(request):
+        return _cart_json(request, ok=False, message=message, status=404)
+    raise Http404(message)
+
+
+def _parse_quantity(raw) -> int | None:
+    """Read a whole number from form data, or ``None`` when it is unusable."""
+    if raw is None:
+        return None
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_target_quantity(current: int, quantity, delta, product: Product):
+    """Work out the quantity the shopper asked for and validate it.
+
+    Returns ``(target, error)``. ``target`` of ``0`` means "remove this line"
+    (the stepper's minus button posts 0 at a quantity of one, which is how the
+    cart has always behaved). A ``None`` target always comes with an error
+    message; nothing is written in that case.
+    """
+    target = current if quantity is None and delta is None else (
+        quantity if quantity is not None else current + delta
+    )
+    if target < 0:
+        return None, "A product quantity cannot be negative."
+    if target == 0:
+        return 0, None
+    if not product.available:
+        return None, f"{product.name} is no longer available."
+    if target > product.stock_quantity:
+        return None, (
+            f"Only {product.stock_quantity} item(s) of {product.name} are in stock."
+        )
+    return target, None
 
 
 def cart_view(request: HttpRequest) -> HttpResponse:
@@ -1139,18 +1300,31 @@ def cart_view(request: HttpRequest) -> HttpResponse:
         items = list(cart.items.select_related("product", "product__category").all())
     else:
         cart, items = _get_guest_cart_and_items(request)
-    context = {"cart": cart, "items": items, **_cart_totals(items)}
+
+    totals = _cart_totals(items)
+    cart_state = _cart_payload(items)
+    # The context processor would otherwise count the cart again for the header
+    # badge; hand it the figure already calculated here instead.
+    request._cart_item_count = totals["item_count"]
+    context = {
+        "cart": cart,
+        "items": items,
+        "cart_count": totals["item_count"],
+        "item_count": totals["item_count"],
+        "cart_state": cart_state,
+        **totals,
+    }
     return render(request, "store/cart.html", context)
 
 
 @require_POST
 def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
-    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    wants_json = _wants_json(request)
     product = get_object_or_404(Product, pk=product_id, available=True)
 
     def add_error(message: str, status: int = 400):
         if wants_json:
-            return JsonResponse({"ok": False, "message": message}, status=status)
+            return _cart_json(request, ok=False, message=message, status=status)
         messages.error(request, message)
         return redirect(product.get_absolute_url())
 
@@ -1180,7 +1354,10 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
             item.quantity = new_quantity
             item.save(update_fields=["quantity"])
         cart.save(update_fields=["updated_at"])
-        cart_count = cart.item_count()
+        cart_count = (
+            CartItem.objects.filter(cart=cart).aggregate(total=Sum("quantity"))["total"]
+            or 0
+        )
     else:
         guest_cart = _get_session_cart(request)
         key = str(product.pk)
@@ -1209,117 +1386,156 @@ def add_to_cart(request: HttpRequest, product_id: int) -> HttpResponse:
 
 @require_POST
 def update_cart(request: HttpRequest, item_id: int) -> HttpResponse:
-    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    """Change one cart line's quantity, asynchronously when asked to.
 
-    # A missing or unreadable quantity is a broken request, not a request to
-    # delete the line. Treating it as zero used to wipe cart rows whenever a
-    # client posted without the field (for example a submit button that was
-    # already disabled, so it never made it into the form data).
-    try:
-        quantity = int(str(request.POST.get("quantity", "")).strip())
-    except (TypeError, ValueError):
-        message = "We could not tell which quantity you wanted. Please try again."
-        if wants_json:
-            return JsonResponse({"ok": False, "message": message}, status=400)
-        messages.error(request, message)
-        return redirect("store:cart")
+    The endpoint accepts either an absolute ``quantity`` (what the no-JS form
+    posts) or a ``delta`` of +1/-1 (what the stepper sends). It answers with the
+    full cart state so the page can be updated without a reload.
+    """
+    wants_json = _wants_json(request)
+
+    quantity = _parse_quantity(request.POST.get("quantity"))
+    delta = _parse_quantity(request.POST.get("delta"))
+
+    if quantity is None and delta is None:
+        return _cart_error(
+            request,
+            "We could not tell which quantity you wanted. Please try again.",
+        )
+    if quantity is not None and quantity < 0:
+        return _cart_error(request, "A product quantity cannot be negative.")
+    if quantity is None and (delta == 0 or abs(delta) > 10):
+        return _cart_error(request, "That quantity change is not valid.")
+
+    removed = False
+    target = 0
+    message = ""
 
     if request.user.is_authenticated:
-        item = get_object_or_404(
-            CartItem.objects.select_related("product"),
-            pk=item_id,
-            cart__user=request.user,
-        )
-        if quantity <= 0:
-            item.delete()
-            message = f"{item.product.name} was removed from your cart."
-            if not wants_json:
-                messages.info(request, message)
-        elif not item.product.available:
-            message = f"{item.product.name} is no longer available."
-            if wants_json:
-                return JsonResponse({"ok": False, "message": message}, status=400)
-            messages.error(request, message)
-        elif quantity > item.product.stock_quantity:
-            message = f"Only {item.product.stock_quantity} item(s) of {item.product.name} are in stock."
-            if wants_json:
-                return JsonResponse({"ok": False, "message": message}, status=400)
-            messages.error(request, message)
-        else:
-            item.quantity = quantity
-            item.save(update_fields=["quantity"])
-            item.cart.save(update_fields=["updated_at"])
-            message = "Your cart was updated."
-            if not wants_json:
-                messages.success(request, message)
-        if wants_json:
-            return JsonResponse({"ok": True, "message": message, "cart_count": item.cart.item_count()})
-        return redirect("store:cart")
+        with transaction.atomic():
+            # Lock just this line so two rapid clicks cannot both read the same
+            # starting quantity and overwrite each other. The product row is
+            # read separately and never locked here, so a cart click can never
+            # deadlock against a checkout holding the inventory row.
+            item = (
+                CartItem.objects.select_for_update()
+                .filter(pk=item_id, cart__user=request.user)
+                .first()
+            )
+            if item is None:
+                return _missing_cart_item(request, "That item is no longer in your cart.")
 
-    guest_cart = _get_session_cart(request)
-    key = str(item_id)
-    if key not in guest_cart:
-        raise Http404("Item not found in guest cart.")
+            product = Product.objects.filter(pk=item.product_id).first()
+            if product is None:
+                item.delete()
+                return _cart_error(
+                    request,
+                    "That product is no longer sold.",
+                    status=404,
+                    cart=_cart_payload(_current_cart_items(request)),
+                )
 
-    product = Product.objects.filter(pk=item_id).first()
-    if product is None:
-        guest_cart.pop(key, None)
-        _save_session_cart(request, guest_cart)
-        raise Http404("Product not found.")
+            target, error = _resolve_target_quantity(
+                current=item.quantity,
+                quantity=quantity,
+                delta=delta,
+                product=product,
+            )
+            if error:
+                # Nothing has been written yet, so simply report the problem.
+                return _cart_error(request, error)
 
-    if quantity <= 0:
-        guest_cart.pop(key, None)
-        _save_session_cart(request, guest_cart)
-        message = f"{product.name} was removed from your cart."
-        if not wants_json:
-            messages.info(request, message)
-    elif not product.available:
-        message = f"{product.name} is no longer available."
-        if wants_json:
-            return JsonResponse({"ok": False, "message": message}, status=400)
-        messages.error(request, message)
-    elif quantity > product.stock_quantity:
-        message = f"Only {product.stock_quantity} item(s) of {product.name} are in stock."
-        if wants_json:
-            return JsonResponse({"ok": False, "message": message}, status=400)
-        messages.error(request, message)
+            removed = target == 0
+            cart_id = item.cart_id
+            if removed:
+                item.delete()
+                message = f"{product.name} was removed from your cart."
+            else:
+                item.quantity = target
+                item.save(update_fields=["quantity"])
+                message = "Your cart was updated."
+            # Touch the cart so its ``updated_at`` ordering stays truthful.
+            Cart.objects.filter(pk=cart_id).update(updated_at=timezone.now())
     else:
-        guest_cart[key] = quantity
+        guest_cart = _get_session_cart(request)
+        key = str(item_id)
+        if key not in guest_cart:
+            return _missing_cart_item(request, "That item is no longer in your cart.")
+
+        product = Product.objects.filter(pk=item_id).first()
+        if product is None:
+            guest_cart.pop(key, None)
+            _save_session_cart(request, guest_cart)
+            return _missing_cart_item(request, "That product is no longer sold.")
+
+        target, error = _resolve_target_quantity(
+            current=guest_cart[key],
+            quantity=quantity,
+            delta=delta,
+            product=product,
+        )
+        if error:
+            return _cart_error(request, error)
+
+        removed = target == 0
+        if removed:
+            guest_cart.pop(key, None)
+            message = f"{product.name} was removed from your cart."
+        else:
+            guest_cart[key] = target
+            message = "Your cart was updated."
         _save_session_cart(request, guest_cart)
-        message = "Your cart was updated."
-        if not wants_json:
-            messages.success(request, message)
 
     if wants_json:
-        return JsonResponse(
-            {"ok": True, "message": message, "cart_count": sum(guest_cart.values())}
+        return _cart_json(
+            request,
+            ok=True,
+            message=message,
+            item={"id": item_id, "quantity": 0 if removed else target, "removed": removed},
+            removed=removed,
         )
+
+    if removed:
+        messages.info(request, message)
+    else:
+        messages.success(request, message)
     return redirect("store:cart")
 
 
 @require_POST
 def remove_from_cart(request: HttpRequest, item_id: int) -> HttpResponse:
-    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    wants_json = _wants_json(request)
     if request.user.is_authenticated:
-        item = get_object_or_404(CartItem, pk=item_id, cart__user=request.user)
+        item = (
+            CartItem.objects.filter(pk=item_id, cart__user=request.user)
+            .select_related("product")
+            .first()
+        )
+        if item is None:
+            return _missing_cart_item(request, "That item is no longer in your cart.")
         name = item.product.name
-        cart = item.cart
+        cart_id = item.cart_id
         item.delete()
-        cart_count = cart.item_count()
+        Cart.objects.filter(pk=cart_id).update(updated_at=timezone.now())
     else:
         guest_cart = _get_session_cart(request)
         key = str(item_id)
         if key not in guest_cart:
-            raise Http404("Item not found in guest cart.")
+            return _missing_cart_item(request, "That item is no longer in your cart.")
         product = Product.objects.filter(pk=item_id).first()
         name = product.name if product else "Item"
         guest_cart.pop(key, None)
         _save_session_cart(request, guest_cart)
-        cart_count = sum(guest_cart.values())
 
     message = f"{name} was removed from your cart."
     if wants_json:
-        return JsonResponse({"ok": True, "message": message, "cart_count": cart_count})
+        return _cart_json(
+            request,
+            ok=True,
+            message=message,
+            item={"id": item_id, "quantity": 0, "removed": True},
+            removed=True,
+        )
     messages.info(request, message)
     return redirect("store:cart")
 

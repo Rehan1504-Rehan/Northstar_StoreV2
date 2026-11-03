@@ -1,5 +1,5 @@
 {% extends 'store/base.html' %}
-{% load store_extras %}
+{% load static store_extras %}
 {% block title %}Shopping cart — Northstar Store{% endblock %}
 {% block content %}
 <section class="page-hero">
@@ -11,17 +11,18 @@
             </ol>
         </nav>
         <h1 class="page-hero-title">Shopping Cart</h1>
-        <p class="page-hero-sub">{% if items %}{{ cart.item_count }} item{{ cart.item_count|pluralize }} in your cart{% else %}Review your picks before they make their way to you.{% endif %}</p>
+        <p class="page-hero-sub" data-cart-hero-sub data-empty-text="Review your picks before they make their way to you.">{% if items %}{{ item_count }} item{{ item_count|pluralize }} in your cart{% else %}Review your picks before they make their way to you.{% endif %}</p>
     </div>
 </section>
 
-<section class="container section-block pt-4">
+<section class="container section-block pt-4" data-cart-page>
+    {{ cart_state|json_script:"cart-state" }}
     {% if items %}
-        <div class="row g-4">
+        <div class="row g-4" data-cart-layout>
             <div class="col-lg-8" data-reveal>
                 <div class="cart-list">
                     {% for item in items %}
-                        <div class="cart-item">
+                        <div class="cart-item" data-cart-line data-item-id="{{ item.id }}">
                             <a class="cart-item-image" href="{{ item.product.get_absolute_url }}" aria-label="View {{ item.product.name }}">
                                 {% if item.product.image %}
                                     <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" loading="lazy" decoding="async" data-fallback>
@@ -37,21 +38,25 @@
                                     {% if item.product.has_discount %}<s>{{ item.product.price|inr }}</s>{% endif %}
                                 </div>
                                 <div class="cart-actions">
-                                    <form method="post" action="{% url 'store:update_cart' item.id %}" class="quantity-control quantity-control-small m-0">
+                                    <form method="post" action="{% url 'store:update_cart' item.id %}" class="quantity-control quantity-control-small m-0" data-cart-quantity-form>
                                         {% csrf_token %}
-                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'-1' }}" class="quantity-button" aria-label="Decrease quantity of {{ item.product.name }}"><i class="bi bi-dash"></i></button>
-                                        <span class="quantity-value" aria-label="Quantity">{{ item.quantity }}</span>
-                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'1' }}" class="quantity-button" aria-label="Increase quantity of {{ item.product.name }}"><i class="bi bi-plus"></i></button>
+                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'-1' }}" class="quantity-button" data-cart-step="-1" aria-label="Decrease quantity of {{ item.product.name }}"><i class="bi bi-dash"></i></button>
+                                        <span class="quantity-value" data-line-quantity aria-label="Quantity">{{ item.quantity }}</span>
+                                        <button type="submit" name="quantity" value="{{ item.quantity|add:'1' }}" class="quantity-button" data-cart-step="1" aria-label="Increase quantity of {{ item.product.name }}"><i class="bi bi-plus"></i></button>
                                     </form>
-                                    <form method="post" action="{% url 'store:remove_from_cart' item.id %}" class="m-0">
+                                    <span class="cart-line-status" data-line-status>
+                                        <span class="spinner-border spinner-border-sm text-secondary" data-line-spinner role="status" aria-hidden="true" hidden></span>
+                                        <span class="visually-hidden" data-line-status-text aria-live="polite"></span>
+                                    </span>
+                                    <form method="post" action="{% url 'store:remove_from_cart' item.id %}" class="m-0" data-cart-remove-form>
                                         {% csrf_token %}
-                                        <button type="submit" class="remove-link"><i class="bi bi-trash3 me-1"></i>Remove</button>
+                                        <button type="submit" class="remove-link" data-cart-remove><i class="bi bi-trash3 me-1"></i>Remove</button>
                                     </form>
                                 </div>
                             </div>
                             <div class="cart-item-total">
                                 <span class="cart-item-total-label">Subtotal</span>
-                                <strong>{{ item.subtotal|inr }}</strong>
+                                <strong data-line-subtotal>{{ item.subtotal|inr }}</strong>
                             </div>
                         </div>
                     {% endfor %}
@@ -62,14 +67,12 @@
             <div class="col-lg-4" data-reveal style="--d:.08s">
                 <div class="summary-card sticky-lg-top">
                     <h2 class="summary-title">Order summary</h2>
-                    <div class="summary-row"><span>Subtotal ({{ cart.item_count }} item{{ cart.item_count|pluralize }})</span><span>{{ cart_regular_total|inr }}</span></div>
-                    {% if cart_savings > 0 %}
-                        <div class="summary-row summary-saving"><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span>−{{ cart_savings|inr }}</span></div>
-                    {% endif %}
-                    <div class="summary-row"><span>Shipping</span><span class="summary-free">{% if cart_total > 999 %}FREE{% else %}Calculated at checkout{% endif %}</span></div>
+                    <div class="summary-row"><span data-cart-subtotal-label>Subtotal ({{ item_count }} item{{ item_count|pluralize }})</span><span data-cart-subtotal>{{ cart_regular_total|inr }}</span></div>
+                    <div class="summary-row summary-saving" data-cart-savings-row{% if not cart_savings %} hidden{% endif %}><span><i class="bi bi-lightning-charge-fill me-1"></i>Discount savings</span><span data-cart-savings>−{{ cart_savings|inr }}</span></div>
+                    <div class="summary-row"><span>Shipping</span><span class="summary-free" data-cart-shipping>{% if cart_total > 999 %}FREE{% else %}Calculated at checkout{% endif %}</span></div>
                     <hr class="summary-divider">
-                    <div class="summary-total"><span>Total</span><strong>{{ cart_total|inr }}</strong></div>
-                    {% if cart_savings > 0 %}<p class="summary-save-note">You save {{ cart_savings|inr }} on this order</p>{% endif %}
+                    <div class="summary-total"><span>Total</span><strong data-cart-total>{{ cart_total|inr }}</strong></div>
+                    <p class="summary-save-note" data-cart-save-note{% if not cart_savings %} hidden{% endif %}>You save {{ cart_savings|inr }} on this order</p>
                     <a href="{% url 'store:checkout' %}" class="btn btn-accent btn-lg rounded-pill w-100 mt-3">Proceed to Checkout<i class="bi bi-arrow-right ms-2"></i></a>
                     {% if not user.is_authenticated %}
                         <p class="summary-foot"><i class="bi bi-person-check me-1"></i>Have an account? <a href="{% url 'store:login' %}?next={% url 'store:cart' %}">Sign in</a> to merge your saved cart</p>
@@ -78,13 +81,20 @@
                 </div>
             </div>
         </div>
-    {% else %}
-        <div class="empty-state large-empty" data-reveal>
-            <i class="bi bi-cart-x"></i>
-            <h2>Your cart is empty</h2>
-            <p>Looks like you haven't added anything yet. Explore the store and find something you love.</p>
-            <a class="btn btn-accent rounded-pill px-4" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-2"></i>Continue Shopping</a>
+
+        {% comment %}
+        Kept out of the way until the last line is removed. The cart script
+        reveals this exact markup instead of reloading the page, so the empty
+        cart looks identical to a fresh one.
+        {% endcomment %}
+        <div id="cartEmptyState" hidden>
+            {% include 'store/includes/empty_cart.html' %}
         </div>
+    {% else %}
+        {% include 'store/includes/empty_cart.html' %}
     {% endif %}
 </section>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'store/js/cart.js' %}?v={{ asset_version }}" defer></script>
 {% endblock %}

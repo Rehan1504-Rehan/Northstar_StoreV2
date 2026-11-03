@@ -238,6 +238,13 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# Local CSS/JS files keep their names between deploys (CompressedStaticFilesStorage
+# does not fingerprint them), and the CDN/WhiteNoise layer serves them with a
+# far-future cache header. Appending this version to their URLs in base.html is
+# what makes a returning browser pick up an updated storefront script instead of
+# running the copy it cached months ago. Bump it whenever static assets change.
+ASSET_VERSION = env("ASSET_VERSION", "2026-11-03")
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BASE_DIR / "media")))
 

@@ -1,0 +1,11 @@
+{% comment %}
+The empty-cart panel. Included both by the cart page and, hidden, as the state
+the JavaScript swaps in when the last line is removed — keeping one copy means
+the two can never drift apart.
+{% endcomment %}
+<div class="empty-state large-empty" data-reveal>
+    <i class="bi bi-cart-x"></i>
+    <h2>Your cart is empty</h2>
+    <p>Looks like you haven't added anything yet. Explore the store and find something you love.</p>
+    <a class="btn btn-accent rounded-pill px-4" href="{% url 'store:product_list' %}"><i class="bi bi-bag me-2"></i>Continue Shopping</a>
+</div>
